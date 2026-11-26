@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# egomat — convert and optimise images from the command line or from the
+# right-click menu of KDE Dolphin and other freedesktop file managers.
+#
+# SPDX-License-Identifier: MIT
+
+set -o pipefail
+
+# ---------------------------------------------------------------------------
+# Locate ourselves, following symlinks (install.sh links $PREFIX/bin/egomat
+# to $PREFIX/lib/egomat/bin/egomat).
+# ---------------------------------------------------------------------------
+_egomat_self=${BASH_SOURCE[0]}
+case $_egomat_self in
+  */*) ;;
+  *)
+    _t=$(command -v -- "$_egomat_self" 2>/dev/null) && [ -n "$_t" ] && _egomat_self=$_t
+    ;;
+esac
+while [ -L "$_egomat_self" ]; do
+  _d=$(cd -P "$(dirname "$_egomat_self")" >/dev/null 2>&1 && pwd) || break
+  _egomat_self=$(readlink "$_egomat_self")
+  case $_egomat_self in
+    /*) ;;
+    *) _egomat_self=$_d/$_egomat_self ;;
+  esac
+done
+EGOMAT_BIN=$(cd -P "$(dirname "$_egomat_self")" >/dev/null 2>&1 && pwd)
+EGOMAT_ROOT=$(cd -P "$EGOMAT_BIN/.." >/dev/null 2>&1 && pwd)
+EGOMAT_LIBDIR=$EGOMAT_ROOT/lib
+
+if [ ! -d "$EGOMAT_LIBDIR" ]; then
+  for _cand in \
+    "${XDG_DATA_HOME:-$HOME/.local/share}/egomat" \
+    /usr/local/lib/egomat \
+    /usr/lib/egomat; do
+    if [ -d "$_cand/lib" ]; then
+      EGOMAT_ROOT=$_cand
+      EGOMAT_LIBDIR=$_cand/lib
+      break
+    fi
+  done
+fi
+
+for _lib in common tools ui convert optimize menu; do
+  if [ ! -r "$EGOMAT_LIBDIR/egomat-$_lib.sh" ]; then
+    printf 'egomat: error: missing library: %s\n' "$EGOMAT_LIBDIR/egomat-$_lib.sh" >&2
+    exit 1
+  fi
+  # shellcheck source=/dev/null
+  . "$EGOMAT_LIBDIR/egomat-$_lib.sh"
+done
+unset _lib _cand _d _t _egomat_self
+
+# ---------------------------------------------------------------------------
+# Global options must come before the command.
+# ---------------------------------------------------------------------------
+while [ $# -gt 0 ]; do
+  case $1 in
+    --quiet)   EGOMAT_LOG_LEVEL=quiet; shift ;;
+    --verbose) EGOMAT_LOG_LEVEL=verbose; shift ;;
+    --no-ui)   EGOMAT_UI=none; shift ;;
+    --ui)      EGOMAT_UI=auto; shift ;;
+    --ui=*)    EGOMAT_UI=${1#*=}; shift ;;
+    *)         break ;;
+  esac
+done
+
+egomat_detect_ui
+
+cmd=${1-}
+[ $# -gt 0 ] && shift
+
+case $cmd in
+  convert)     cmd_convert "$@" ;;
+  optimize)    cmd_optimize "$@" ;;
+  resize)      cmd_resize "$@" ;;
+  info)        cmd_info "$@" ;;
+  formats|format) cmd_formats ;;
+  assistant|gui)  cmd_assistant "$@" ;;
+  menu)        cmd_menu "$@" ;;
+  install)     cmd_install "$@" ;;
+  uninstall)   cmd_uninstall "$@" ;;
+  version|-V|--version)
+    printf '%s %s\n' "$EGOMAT_NAME" "$EGOMAT_VERSION"
+    exit 0
+    ;;
+  help|-h|--help|'')
+    usage
+    if [ -z "$cmd" ]; then exit 1; fi
+    exit 0
+    ;;
+  *)
+    log_error "unknown command: $cmd"
+    printf "Try '%s help'.\n" "$EGOMAT_NAME" >&2
+    exit 2
+    ;;
+esac
+
+exit $?

@@ -1,0 +1,8 @@
+[Nemo Action]
+Name=@NAME@
+Comment=Convert and optimize images with Egomat
+Exec="@EGOMAT@" @ACTION@ %F
+Icon-Name=egomat
+Selection=notnone
+Extensions=png;jpg;jpeg;jfif;gif;webp;avif;bmp;tif;tiff;svg;heic;ico;
+Quote=double

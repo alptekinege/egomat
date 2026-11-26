@@ -1,0 +1,65 @@
+[Desktop Entry]
+Type=Service
+Name=Egomat
+Comment=Convert and optimize images
+Icon=egomat
+
+X-KDE-ServiceTypes=KonqPopupMenu/Plugin
+ServiceTypes=KonqPopupMenu/Plugin
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/avif;image/bmp;image/tiff;image/svg+xml;image/heic;image/heif;image/x-icon;image/vnd.microsoft.icon;image/jxl;
+
+X-KDE-Priority=TopLevel
+X-KDE-Submenu=Egomat
+Actions=OptimizeLight;OptimizeBalanced;OptimizeAggressive;OptimizeAsk;ConvertWebP;ConvertAvif;ConvertJpeg;ConvertPng;ConvertGif;ConvertPdf;ConvertCustom;Resize;Info;
+
+[Desktop Action OptimizeLight]
+Name=Optimize (light, lossless)
+Exec="@EGOMAT@" menu optimize light %F
+
+[Desktop Action OptimizeBalanced]
+Name=Optimize (balanced)
+Exec="@EGOMAT@" menu optimize balanced %F
+
+[Desktop Action OptimizeAggressive]
+Name=Optimize (aggressive)
+Exec="@EGOMAT@" menu optimize aggressive %F
+
+[Desktop Action OptimizeAsk]
+Name=Optimize…
+Exec="@EGOMAT@" menu optimize ask %F
+
+[Desktop Action ConvertWebP]
+Name=Convert to WebP
+Exec="@EGOMAT@" menu convert webp %F
+
+[Desktop Action ConvertAvif]
+Name=Convert to AVIF
+Exec="@EGOMAT@" menu convert avif %F
+
+[Desktop Action ConvertJpeg]
+Name=Convert to JPEG
+Exec="@EGOMAT@" menu convert jpeg %F
+
+[Desktop Action ConvertPng]
+Name=Convert to PNG
+Exec="@EGOMAT@" menu convert png %F
+
+[Desktop Action ConvertGif]
+Name=Convert to GIF
+Exec="@EGOMAT@" menu convert gif %F
+
+[Desktop Action ConvertPdf]
+Name=Convert to PDF
+Exec="@EGOMAT@" menu convert pdf %F
+
+[Desktop Action ConvertCustom]
+Name=Convert to…
+Exec="@EGOMAT@" menu convert custom %F
+
+[Desktop Action Resize]
+Name=Resize…
+Exec="@EGOMAT@" menu resize ask %F
+
+[Desktop Action Info]
+Name=Show image details
+Exec="@EGOMAT@" menu info %F

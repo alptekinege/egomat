@@ -180,6 +180,7 @@ convert_one() {
   local src=$1
   local fmt=$OPT_FORMAT
   local dir base out tmp before after
+  local kind=${OPT_KIND:-convert} decision="new file" note=""
 
   if [ ! -f "$src" ]; then
     log_error "not a file: $src"
@@ -194,14 +195,37 @@ convert_one() {
   # Never let a conversion destroy its own source.
   if [ "$out" = "$src" ] || { [ -e "$out" ] && [ "$out" -ef "$src" ]; }; then
     out="$dir/$base$OPT_SUFFIX-egomat.$fmt"
+    note="renamed to keep the source name free"
+  fi
+  if [ -e "$out" ] && [ "$OPT_OVERWRITE" -eq 1 ]; then
+    decision="overwrite existing"
   fi
   if [ -e "$out" ] && [ "$OPT_OVERWRITE" -eq 0 ]; then
     out=$(unique_path "$out")
+    decision="unique rename (target exists)"
+  fi
+  if [ -n "$note" ]; then
+    decision="$decision; $note"
   fi
   if [ -e "$out" ] && [ "$out" -ef "$src" ]; then
     log_error "refusing to overwrite the source file: $src"
     EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
     return 1
+  fi
+
+  if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
+    local op="format $fmt"
+    [ -n "$OPT_QUALITY" ] && op="$op, quality $OPT_QUALITY"
+    [ -n "$OPT_RESIZE" ] && op="$op, resize $OPT_RESIZE"
+    if [ "$kind" = convert ]; then
+      [ "$OPT_KEEP_METADATA" -eq 1 ] && op="$op, keep metadata"
+      [ "$OPT_DELETE_SOURCE" -eq 1 ] && op="$op, delete source after writing"
+    fi
+    if [ ! -d "$dir" ]; then
+      decision="$decision; create directory $dir"
+    fi
+    printf 'would %s: %s -> %s (%s; %s)\n' "$kind" "$src" "$out" "$op" "$decision"
+    return 0
   fi
 
   if ! mkdir -p -- "$dir" 2>/dev/null; then
@@ -254,6 +278,7 @@ cmd_convert() {
   OPT_OVERWRITE=0
   OPT_KEEP_METADATA=0
   OPT_DELETE_SOURCE=0
+  OPT_KIND=convert
   local -a files=()
 
   while [ $# -gt 0 ]; do
@@ -288,6 +313,7 @@ cmd_convert() {
       --overwrite)     OPT_OVERWRITE=1; shift ;;
       --keep-metadata) OPT_KEEP_METADATA=1; shift ;;
       --delete-source) OPT_DELETE_SOURCE=1; shift ;;
+      --dry-run)       EGOMAT_DRY_RUN=1; shift ;;
       --)
         shift
         while [ $# -gt 0 ]; do files+=("$1"); shift; done
@@ -328,6 +354,11 @@ cmd_resize() {
     usage_resize
     return 0
   fi
+  # --dry-run is also accepted before the geometry.
+  while [ "${1-}" = "--dry-run" ]; do
+    EGOMAT_DRY_RUN=1
+    shift
+  done
   local geo=${1-}
   [ $# -gt 0 ] && shift
   [ -n "$geo" ] || die "resize: a size is required, e.g. 1920 or 1920x1080"
@@ -351,6 +382,7 @@ cmd_resize() {
       --quiet)     EGOMAT_LOG_LEVEL=quiet; shift ;;
       --verbose)   EGOMAT_LOG_LEVEL=verbose; shift ;;
       --overwrite) overwrite=1; shift ;;
+      --dry-run)   EGOMAT_DRY_RUN=1; shift ;;
       -*) die "resize: unknown option: $1" ;;
       *)  files+=("$1"); shift ;;
     esac
@@ -364,6 +396,7 @@ cmd_resize() {
   OPT_OVERWRITE=$overwrite
   OPT_KEEP_METADATA=1
   OPT_DELETE_SOURCE=0
+  OPT_KIND=resize
 
   local f rc=0
   for f in "${files[@]}"; do

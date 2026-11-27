@@ -344,16 +344,40 @@ optimize_one() {
   case $stem in *.*) stem=${stem%.*} ;; esac
   sfx=${base#"$stem"}
 
+  local od=""
   if [ -z "$OPT_OUTDIR" ] && [ -z "$OPT_SUFFIX" ]; then
     target=$src
   else
-    local od=${OPT_OUTDIR:-$dir}
+    od=${OPT_OUTDIR:-$dir}
     target=$(unique_path "$od/$stem$OPT_SUFFIX$sfx")
-    if ! mkdir -p -- "$od" 2>/dev/null; then
-      log_error "cannot create directory: $od"
-      EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
-      return 1
+  fi
+
+  if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
+    local op="level $level" decision backup
+    if [ "$target" = "$src" ]; then
+      if [ "$OPT_FORCE" -eq 1 ]; then
+        decision="replace in place, even if not smaller"
+      else
+        decision="replace in place only if the result is smaller"
+      fi
+    else
+      decision="write optimized copy"
     fi
+    if [ "$OPT_BACKUP" -eq 1 ]; then
+      backup=$(unique_path "$src.egomat-orig")
+      decision="backup as $backup first; $decision"
+    fi
+    if [ -n "$od" ] && [ ! -d "$od" ]; then
+      decision="$decision; create directory $od"
+    fi
+    printf 'would optimize: %s -> %s (%s; %s)\n' "$src" "$target" "$op" "$decision"
+    return 0
+  fi
+
+  if [ -n "$od" ] && ! mkdir -p -- "$od" 2>/dev/null; then
+    log_error "cannot create directory: $od"
+    EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
+    return 1
   fi
 
   if ! egomat_temp_file "$dir" opt "$ext"; then
@@ -469,6 +493,7 @@ cmd_optimize() {
       --verbose) EGOMAT_LOG_LEVEL=verbose; shift ;;
       --backup) OPT_BACKUP=1; shift ;;
       --force)  OPT_FORCE=1; shift ;;
+      --dry-run) EGOMAT_DRY_RUN=1; shift ;;
       --)
         shift
         while [ $# -gt 0 ]; do files+=("$1"); shift; done

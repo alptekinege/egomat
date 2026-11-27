@@ -177,6 +177,12 @@ output names are given a unique numbered name unless `--overwrite` is supplied.
 `--overwrite` applies to the output file, never to the source. `--delete-source`
 removes the source after a successful conversion.
 
+`--dry-run` shows the plan instead of writing: one line per input with the
+source, the planned output name (including any rename or overwrite decision),
+the operation, and what would be created. Nothing is written — no outputs,
+backups, or temporary files. `resize` and `optimize` accept `--dry-run` as
+well.
+
 Metadata is stripped by default where the selected backend supports it.
 `--keep-metadata` asks the backend to retain metadata. Backend support varies.
 Removing metadata can remove ICC color profiles and change how an image appears
@@ -193,7 +199,8 @@ unchanged.
 ### Resize
 
 Resize writes a new file in the source format, with `-resized` added to the
-name by default. `--outdir`, `--suffix`, and `--overwrite` control the output.
+name by default. `--outdir`, `--suffix`, and `--overwrite` control the output;
+`--dry-run` previews the planned output name and geometry without writing.
 Geometry examples include:
 
 ```text
@@ -214,7 +221,9 @@ an output copy, only when the candidate is nonempty, readable as an image, and
 smaller than the input. `--force` bypasses only the smaller-file check: the
 candidate still must be readable. Without `--force`, a result that is equal in
 size or larger is discarded and the source stays unchanged; with `--outdir` or
-`--suffix`, no output file is written in that case.
+`--suffix`, no output file is written in that case. `--dry-run` previews the
+plan — target name, level, whether the source would be replaced only if
+smaller, and any backup name — and performs none of it.
 
 `--backup` saves the original as `FILE.egomat-orig` before writing a result.
 If the backup cannot be created, Egomat stops and does not replace the source

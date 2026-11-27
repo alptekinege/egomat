@@ -36,6 +36,7 @@ Convert options:
       --overwrite      replace an existing output file
       --keep-metadata  do not strip EXIF/ICC data
       --delete-source  remove the source after a successful conversion
+      --dry-run        show the plan and write nothing
 
 Optimize options:
   -l, --level LEVEL    light | balanced | aggressive  (default: balanced)
@@ -43,11 +44,13 @@ Optimize options:
   -s, --suffix SUFFIX  write to a new name instead of in place
       --backup         keep a copy of the original as FILE.egomat-orig
       --force          replace the file even when nothing got smaller
+      --dry-run        show the plan and write nothing
 
 Resize options:
   -o, --outdir DIR     write into DIR
   -s, --suffix SUFFIX  file-name suffix (default: -resized)
       --overwrite      replace an existing output file
+      --dry-run        show the plan and write nothing
 
 Menu actions (used by the desktop entries):
   convert FORMAT | optimize LEVEL | resize GEOMETRY | info
@@ -97,6 +100,8 @@ Options:
       --keep-metadata  do not strip EXIF/ICC data where the backend
                        supports keeping it
       --delete-source  remove the source after a successful conversion
+      --dry-run        print the planned input, output, operation, and
+                       conflict decision for each file and write nothing
       --quiet          print only errors
       --verbose        print backend decisions and errors
   -h, --help           show this help and exit
@@ -117,6 +122,7 @@ Examples:
   $EGOMAT_NAME convert -f jpg --keep-metadata photo.png
   $EGOMAT_NAME convert -f webp --overwrite photo.jpg
   $EGOMAT_NAME convert -f webp --delete-source photo.jpg
+  $EGOMAT_NAME convert --dry-run -f webp photo.jpg
   $EGOMAT_NAME help convert
 EOF
 }
@@ -142,6 +148,8 @@ Options:
                        if the backup fails, nothing is replaced
       --force          replace even when the candidate is not smaller
                        (the candidate must still be a readable image)
+      --dry-run        print the planned input, output, and replacement
+                       decision for each file and write nothing
       --quiet          print only errors
       --verbose        print backend decisions and errors
   -h, --help           show this help and exit
@@ -162,6 +170,7 @@ Examples:
   $EGOMAT_NAME optimize -l aggressive --force -- photo.png
   $EGOMAT_NAME optimize -l light -o optimized -- photo.jpg
   $EGOMAT_NAME optimize -l light --backup photo.png photo2.jpg
+  $EGOMAT_NAME optimize --dry-run --backup photo.jpg
   $EGOMAT_NAME help optimize
 EOF
 }
@@ -186,6 +195,8 @@ Options:
       --output-dir DIR
   -s, --suffix SUFFIX  file-name suffix (default: -resized)
       --overwrite      replace an existing output file (never the source)
+      --dry-run        print the planned input, output, and conflict
+                       decision for each file and write nothing
       --quiet          print only errors
       --verbose        print backend decisions and errors
   -h, --help           show this help and exit
@@ -205,6 +216,7 @@ Examples:
   $EGOMAT_NAME resize 1920x\> -- photo.jpg
   $EGOMAT_NAME resize 200 -o thumbs -- photo.png
   $EGOMAT_NAME resize 200 --suffix -small -- photo.png
+  $EGOMAT_NAME resize --dry-run 1600 -- photo.jpg
   $EGOMAT_NAME help resize
 EOF
 }

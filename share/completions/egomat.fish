@@ -76,6 +76,7 @@ complete -c egomat -n '__fish_seen_subcommand_from convert' -s s -l suffix -x -d
 complete -c egomat -n '__fish_seen_subcommand_from convert' -l overwrite -d 'replace an existing output file'
 complete -c egomat -n '__fish_seen_subcommand_from convert' -l keep-metadata -d 'do not strip EXIF/ICC data'
 complete -c egomat -n '__fish_seen_subcommand_from convert' -l delete-source -d 'remove the source after conversion'
+complete -c egomat -n '__fish_seen_subcommand_from convert optimize resize' -l dry-run -d 'show the plan and write nothing'
 complete -c egomat -n '__fish_seen_subcommand_from optimize' -s s -l suffix -x -d 'write to a new name instead of in place'
 complete -c egomat -n '__fish_seen_subcommand_from optimize' -l backup -d 'keep a copy of the original before writing'
 complete -c egomat -n '__fish_seen_subcommand_from optimize' -l force -d 'replace even when the candidate is not smaller'

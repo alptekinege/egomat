@@ -141,6 +141,46 @@ check "installer dry run lists completions" bash -c \
 check "installer dry run can skip completions" bash -c \
   "! '$ROOT/install.sh' --prefix '$TMP/inst' --no-completions --dry-run | grep -q 'vendor_completions.d'"
 
+# --- dry run ---------------------------------------------------------------
+dry="$TMP/dry"
+mkdir -p -- "$dry"
+cp -- "$TMP/photo.png" "$dry/photo.png"
+
+check "convert dry run shows the plan" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp '$dry/photo.png' | grep -q 'would convert'"
+check "convert dry run names the output" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp '$dry/photo.png' | grep -q 'photo.webp'"
+check "convert dry run shows the conflict decision" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp '$dry/photo.png' | grep -q 'new file'"
+check "convert dry run shows the operation" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp -q 80 '$dry/photo.png' | grep -q 'quality 80'"
+check "convert dry run writes nothing" bash -c \
+  "! test -e '$dry/photo.webp'"
+check "convert dry run leaves no temporaries" bash -c \
+  "! compgen -G '$dry/.egomat-*' >/dev/null"
+check "convert dry run does not create the outdir" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp -o '$dry/out' '$dry/photo.png' >/dev/null && ! test -e '$dry/out'"
+check "dry run reports a rename when the output exists" bash -c \
+  ": > '$dry/photo.webp' && '$EGOMAT' convert --dry-run -f webp '$dry/photo.png' | grep -q 'photo-1.webp'"
+check "dry run reports the overwrite decision" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp --overwrite '$dry/photo.png' | grep -q 'overwrite existing'"
+check "resize dry run shows the geometry" bash -c \
+  "'$EGOMAT' resize 800 --dry-run '$dry/photo.png' | grep -q 'resize 800'"
+check "resize dry run writes nothing" bash -c \
+  "! test -e '$dry/photo-resized.png'"
+check "optimize dry run shows the plan" bash -c \
+  "'$EGOMAT' optimize --dry-run '$dry/photo.png' | grep -q 'would optimize'"
+check "optimize dry run does not touch the source" bash -c \
+  "sz=\$(wc -c < '$dry/photo.png') && '$EGOMAT' optimize --dry-run --backup '$dry/photo.png' >/dev/null && [ \"\$sz\" = \"\$(wc -c < '$dry/photo.png')\" ]"
+check "optimize dry run mentions the backup" bash -c \
+  "'$EGOMAT' optimize --dry-run --backup '$dry/photo.png' | grep -q 'egomat-orig'"
+check "optimize dry run creates no backup" bash -c \
+  "! compgen -G '$dry/photo.png.egomat-orig*' >/dev/null"
+check "optimize dry run writes no copy or outdir" bash -c \
+  "'$EGOMAT' optimize --dry-run -o '$dry/opt' '$dry/photo.png' >/dev/null && ! test -e '$dry/opt'"
+check "dry run on a missing file fails" bash -c \
+  "! '$EGOMAT' convert --dry-run -f webp '$dry/missing.png' >/dev/null 2>&1"
+
 # --- conversion ------------------------------------------------------------
 check "png -> webp" "$EGOMAT" convert -f webp "$TMP/photo.png"
 check "webp exists" test -s "$TMP/photo.webp"

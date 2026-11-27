@@ -71,12 +71,12 @@ _egomat() {
       convert)
         opts=(-f --format -q --quality -r --resize --size -o --outdir
               --output-dir -s --suffix --overwrite --keep-metadata
-              --delete-source --quiet --verbose -h --help) ;;
+              --delete-source --dry-run --quiet --verbose -h --help) ;;
       optimize)
         opts=(-l --level -o --outdir --output-dir -s --suffix --backup
-              --force --quiet --verbose -h --help) ;;
+              --force --dry-run --quiet --verbose -h --help) ;;
       resize)
-        opts=(-o --outdir --output-dir -s --suffix --overwrite
+        opts=(-o --outdir --output-dir -s --suffix --overwrite --dry-run
               --quiet --verbose -h --help) ;;
       install)
         opts=(--user --system --prefix --no-kde --no-freedesktop --no-app

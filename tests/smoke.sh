@@ -80,6 +80,21 @@ check "batch conversion" "$EGOMAT" convert -f webp "$TMP/photo.png" "$TMP/photo.
 check "unknown format is refused" bash -c "! '$EGOMAT' convert -f nonsense '$TMP/photo.png'"
 check "bad geometry is refused" bash -c "! '$EGOMAT' convert -f png -r 'abc!' '$TMP/photo.png'"
 
+# --- unusual paths ---------------------------------------------------------
+mkdir -p -- "$TMP/space dir"
+unusual="$TMP/space dir/odd [x] 'image'.png"
+cp -- "$TMP/photo.png" "$unusual"
+check "path with spaces and punctuation converts" "$EGOMAT" convert -f webp -- "$unusual"
+check "converted unusual path exists" test -s "$TMP/space dir/odd [x] 'image'.webp"
+dashdir="$TMP/leading-dash"
+mkdir -p -- "$dashdir"
+cp -- "$TMP/photo.png" "$dashdir/-odd image.png"
+check "leading-dash filename is accepted after --" bash -c \
+  "cd '$dashdir' && '$EGOMAT' info -- '-odd image.png'"
+check "leading-dash filename converts" bash -c \
+  "cd '$dashdir' && '$EGOMAT' convert -f webp -- '-odd image.png'"
+check "converted leading-dash file exists" test -s "$dashdir/-odd image.webp"
+
 # --- optimisation ----------------------------------------------------------
 if "$EGOMAT" formats 2>/dev/null | grep -q 'oxipng\s*yes\|optipng\s*yes\|pngquant\s*yes'; then
   cp -- "$TMP/photo.png" "$TMP/before.png"
@@ -103,6 +118,71 @@ fi
 check "optimize to outdir" "$EGOMAT" optimize -l light -o "$TMP/opt" "$TMP/photo.png"
 check "optimized copy exists" test -s "$TMP/opt/photo.png"
 
+if "$EGOMAT" formats 2>/dev/null | grep -q 'oxipng\s*yes\|optipng\s*yes\|zopflipng\s*yes\|pngquant\s*yes\|jpegoptim\s*yes\|jpegtran\s*yes\|gifsicle\s*yes\|svgo\s*yes\|cwebp\s*yes\|webpmux\s*yes\|ImageMagick\s*yes'; then
+  cp -- "$TMP/photo.png" "$TMP/concurrent.png"
+  "$EGOMAT" optimize -l light --force "$TMP/concurrent.png" >/dev/null 2>&1 &
+  optimize_pid_1=$!
+  "$EGOMAT" optimize -l light --force "$TMP/concurrent.png" >/dev/null 2>&1 &
+  optimize_pid_2=$!
+  if wait "$optimize_pid_1" && wait "$optimize_pid_2"; then
+    pass "concurrent optimization completes"
+  else
+    fail "concurrent optimization completes"
+  fi
+  check "concurrently optimized image remains readable" "$EGOMAT" info "$TMP/concurrent.png"
+  check "concurrent optimization leaves no temporary files" bash -c \
+    "! compgen -G '$TMP/.egomat-*' >/dev/null"
+else
+  echo "  skip concurrent optimisation (no optimiser installed)"
+fi
+
+# Force the PNG optimizer path through controllable test doubles.
+FAKEBIN="$TMP/fakebin"
+mkdir -p -- "$FAKEBIN"
+cat >"$FAKEBIN/oxipng" <<'EOF'
+#!/usr/bin/env bash
+file=${!#}
+case ${OXIPNG_MODE:-success} in
+  fail) exit 1 ;;
+  empty) : >"$file" ;;
+  invalid) printf 'not an image\n' >"$file" ;;
+esac
+EOF
+chmod +x "$FAKEBIN/oxipng"
+cat >"$FAKEBIN/cp" <<'EOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+  case $arg in */.egomat-backup.*) exit 1 ;; esac
+done
+exec /bin/cp "$@"
+EOF
+chmod +x "$FAKEBIN/cp"
+
+cp -- "$TMP/photo.png" "$TMP/failure.png"
+check "optimizer failure preserves source" env PATH="$FAKEBIN:$PATH" OXIPNG_MODE=fail \
+  "$EGOMAT" optimize -l light --force "$TMP/failure.png"
+check "source remains readable after optimizer failure" "$EGOMAT" info "$TMP/failure.png"
+
+for bad_output in empty invalid; do
+  cp -- "$TMP/photo.png" "$TMP/$bad_output.png"
+  if env PATH="$FAKEBIN:$PATH" OXIPNG_MODE="$bad_output" \
+    "$EGOMAT" optimize -l light --force "$TMP/$bad_output.png" >/dev/null 2>&1; then
+    fail "$bad_output optimizer output is rejected"
+  else
+    pass "$bad_output optimizer output is rejected"
+  fi
+  check "$bad_output output leaves original unchanged" cmp -s "$TMP/photo.png" "$TMP/$bad_output.png"
+done
+
+cp -- "$TMP/photo.png" "$TMP/no-backup.png"
+if env PATH="$FAKEBIN:$PATH" OXIPNG_MODE=success \
+  "$EGOMAT" optimize -l light --force --backup "$TMP/no-backup.png" >/dev/null 2>&1; then
+  fail "backup write failure stops replacement"
+else
+  pass "backup write failure stops replacement"
+fi
+check "backup write failure preserves source" cmp -s "$TMP/photo.png" "$TMP/no-backup.png"
+
 # --- resize ----------------------------------------------------------------
 check "resize command" "$EGOMAT" resize 200 "$TMP/photo.png"
 check "resized file exists" test -s "$TMP/photo-resized.png"
@@ -117,12 +197,16 @@ check "menu info" "$EGOMAT" menu info "$TMP/photo.png"
 
 # --- installer -------------------------------------------------------------
 FAKE="$TMP/prefix"
-check "install into a prefix" "$ROOT/install.sh" --prefix "$FAKE" --no-kde --no-freedesktop
+mkdir -p -- "$FAKE/share/nautilus/scripts/Egomat"
+printf 'keep me\n' >"$FAKE/share/nautilus/scripts/Egomat/custom-script"
+check "install into a prefix" "$ROOT/install.sh" --prefix "$FAKE" --no-kde
 check "installed launcher runs" "$FAKE/bin/egomat" version
 check "installed launcher converts" "$FAKE/bin/egomat" convert -f webp "$TMP/photo.png" -o "$TMP/inst"
 check "installer rendered the app entry" test -s "$FAKE/share/applications/egomat.desktop"
 check "uninstall" "$ROOT/uninstall.sh" --prefix "$FAKE"
 check "uninstall removed the launcher" test ! -e "$FAKE/bin/egomat"
+check "uninstall preserved pre-existing Egomat script" test -s \
+  "$FAKE/share/nautilus/scripts/Egomat/custom-script"
 
 echo
 if [ "$fails" -eq 0 ]; then

@@ -135,7 +135,9 @@ egomat assistant
 ```
 
 Use `--` before file names that begin with `-`. Run `egomat help` for the full
-command synopsis and option list.
+command synopsis and option list, `egomat help COMMAND` (for example
+`egomat help convert` or `egomat help optimize`) or `egomat COMMAND --help`
+(for example `egomat convert --help`) for a command's options and examples.
 
 ### Convert
 

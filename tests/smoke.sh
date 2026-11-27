@@ -56,6 +56,46 @@ check "version runs" "$EGOMAT" version
 check "help runs" "$EGOMAT" help
 check "formats runs" "$EGOMAT" formats
 
+# --- per-command help ------------------------------------------------------
+check "help convert" "$EGOMAT" help convert
+check "help optimize" "$EGOMAT" help optimize
+check "help resize" "$EGOMAT" help resize
+check "help info" "$EGOMAT" help info
+check "help formats" "$EGOMAT" help formats
+check "help assistant" "$EGOMAT" help assistant
+check "help menu" "$EGOMAT" help menu
+check "help install" "$EGOMAT" help install
+check "help uninstall" "$EGOMAT" help uninstall
+check "help version" "$EGOMAT" help version
+check "help help" "$EGOMAT" help help
+check "convert --help" "$EGOMAT" convert --help
+check "convert -h" "$EGOMAT" convert -h
+check "optimize --help" "$EGOMAT" optimize --help
+check "optimize -h" "$EGOMAT" optimize -h
+check "resize --help" "$EGOMAT" resize --help
+check "info --help" "$EGOMAT" info --help
+check "formats --help" "$EGOMAT" formats --help
+check "assistant --help" "$EGOMAT" assistant --help
+check "menu --help" "$EGOMAT" menu --help
+check "install --help" "$EGOMAT" install --help
+check "uninstall --help" "$EGOMAT" uninstall --help
+check "version --help" "$EGOMAT" version --help
+check "--help convert" "$EGOMAT" --help convert
+check "help convert mentions --format" bash -c \
+  "'$EGOMAT' help convert 2>/dev/null | grep -q -- '--format'"
+check "help convert shows examples" bash -c \
+  "'$EGOMAT' help convert 2>/dev/null | grep -q 'Examples:'"
+check "help optimize shows examples" bash -c \
+  "'$EGOMAT' help optimize 2>/dev/null | grep -q 'Examples:'"
+check "convert --help shows examples" bash -c \
+  "'$EGOMAT' convert --help 2>/dev/null | grep -q 'Examples:'"
+check "resize --help shows geometry examples" bash -c \
+  "'$EGOMAT' resize --help 2>/dev/null | grep -q '1920x1080'"
+check "help unknown topic is refused" bash -c \
+  "! '$EGOMAT' help nonsense-topic >/dev/null 2>&1"
+check "help flag after -- is a filename, not help" bash -c \
+  "cd '$TMP' && ! '$EGOMAT' convert -f webp -- --help >/dev/null 2>&1"
+
 # --- conversion ------------------------------------------------------------
 check "png -> webp" "$EGOMAT" convert -f webp "$TMP/photo.png"
 check "webp exists" test -s "$TMP/photo.webp"

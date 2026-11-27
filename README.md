@@ -17,6 +17,8 @@ bash ./install.sh
 The default user install puts the command at `~/.local/bin/egomat`, the program
 files under `~/.local/lib/egomat`, and desktop actions under the XDG data
 directory (usually `~/.local/share`). Add `~/.local/bin` to `PATH` if needed.
+Bash, Zsh, and Fish completions are installed into the standard completion
+directories; open a new shell to pick them up.
 
 For a system install, use `/usr/local` and its `share` directory:
 
@@ -30,11 +32,13 @@ Other installer options:
 bash ./install.sh --prefix "$HOME/opt/egomat"
 bash ./install.sh --dry-run
 bash ./install.sh --no-kde --no-freedesktop --no-app
+bash ./install.sh --no-completions
 bash ./install.sh --gui
 ```
 
 `--prefix DIR` places the program and its data under `DIR`. `--no-kde`,
-`--no-freedesktop`, and `--no-app` skip the corresponding integrations. The
+`--no-freedesktop`, and `--no-app` skip the corresponding integrations, and
+`--no-completions` skips the Bash, Zsh, and Fish completions. The
 installer also accepts `--user` and `--system`. `--gui` additionally builds and
 installs the `egomat-gui` window and tray app, which needs Go 1.23 or newer; see
 [Desktop GUI and tray](#desktop-gui-and-tray).
@@ -138,6 +142,22 @@ Use `--` before file names that begin with `-`. Run `egomat help` for the full
 command synopsis and option list, `egomat help COMMAND` (for example
 `egomat help convert` or `egomat help optimize`) or `egomat COMMAND --help`
 (for example `egomat convert --help`) for a command's options and examples.
+
+### Shell completions
+
+The installer places Bash, Zsh, and Fish completions in the standard
+completion directories. They cover commands, options, format and
+optimization-level values, and file arguments. To install one by hand or to
+inspect the script, print it with `egomat completion SHELL`:
+
+```sh
+egomat completion bash > ~/.local/share/bash-completion/completions/egomat
+egomat completion zsh > ~/.zfunc/_egomat
+egomat completion fish > ~/.config/fish/completions/egomat.fish
+```
+
+For Zsh, make sure the target directory is on your `fpath` before `compinit`
+runs. `egomat help completion` shows the same instructions.
 
 ### Convert
 
@@ -292,7 +312,7 @@ lib/egomat-convert.sh   conversion and resize engine
 lib/egomat-optimize.sh  optimization engine
 lib/egomat-menu.sh      assistant, usage, and format inventory
 cmd/egomat-gui/         optional Go window and tray app
-share/                  desktop and file-manager templates
+share/                  desktop, file-manager, and shell-completion templates
 install.sh              installer
 update.sh               checkout updater and installer
 uninstall.sh            uninstaller

@@ -95,6 +95,7 @@ case $cmd in
   menu)        cmd_menu "$@" ;;
   install)     cmd_install "$@" ;;
   uninstall)   cmd_uninstall "$@" ;;
+  completion)  cmd_completion "$@" ;;
   version|-V|--version)
     printf '%s %s\n' "$EGOMAT_NAME" "$EGOMAT_VERSION"
     exit 0

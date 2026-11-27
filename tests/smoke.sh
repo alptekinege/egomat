@@ -96,6 +96,51 @@ check "help unknown topic is refused" bash -c \
 check "help flag after -- is a filename, not help" bash -c \
   "cd '$TMP' && ! '$EGOMAT' convert -f webp -- --help >/dev/null 2>&1"
 
+# --- shell completions -----------------------------------------------------
+check "help completion" "$EGOMAT" help completion
+check "completion --help" "$EGOMAT" completion --help
+check "completion without a shell is refused" bash -c \
+  "! '$EGOMAT' completion >/dev/null 2>&1"
+check "completion with an unknown shell is refused" bash -c \
+  "! '$EGOMAT' completion powershell >/dev/null 2>&1"
+check "completion bash prints a script" bash -c \
+  "'$EGOMAT' completion bash | grep -q 'complete -F _egomat_complete'"
+check "completion zsh prints a script" bash -c \
+  "'$EGOMAT' completion zsh | grep -q '#compdef egomat'"
+check "completion fish prints a script" bash -c \
+  "'$EGOMAT' completion fish | grep -q 'complete -c egomat'"
+check "bash completion script is valid bash" bash -c \
+  "'$EGOMAT' completion bash | bash -n"
+check "bash completion suggests commands" bash -c "
+  source '$ROOT/share/completions/egomat.bash'
+  COMP_WORDS=(egomat con); COMP_CWORD=1
+  _egomat_complete
+  [[ \" \${COMPREPLY[*]} \" == *convert* ]]"
+check "bash completion suggests formats" bash -c "
+  source '$ROOT/share/completions/egomat.bash'
+  COMP_WORDS=(egomat convert -f we); COMP_CWORD=3
+  _egomat_complete
+  [[ \" \${COMPREPLY[*]} \" == *webp* ]]"
+check "bash completion suggests levels" bash -c "
+  source '$ROOT/share/completions/egomat.bash'
+  COMP_WORDS=(egomat optimize -l ag); COMP_CWORD=3
+  _egomat_complete
+  [[ \" \${COMPREPLY[*]} \" == *aggressive* ]]"
+if command -v zsh >/dev/null 2>&1; then
+  check "zsh completion script is valid zsh" bash -c \
+    "'$EGOMAT' completion zsh >'$TMP/_egomat' && zsh -n '$TMP/_egomat'"
+fi
+if command -v fish >/dev/null 2>&1; then
+  check "fish completion script is valid fish" bash -c \
+    "'$EGOMAT' completion fish | fish -n"
+  check "fish completion suggests commands" bash -c \
+    "fish -c 'source \"$ROOT/share/completions/egomat.fish\"; complete -C\"egomat con\"' | grep -q convert"
+fi
+check "installer dry run lists completions" bash -c \
+  "'$ROOT/install.sh' --prefix '$TMP/inst' --dry-run | grep -q 'vendor_completions.d'"
+check "installer dry run can skip completions" bash -c \
+  "! '$ROOT/install.sh' --prefix '$TMP/inst' --no-completions --dry-run | grep -q 'vendor_completions.d'"
+
 # --- conversion ------------------------------------------------------------
 check "png -> webp" "$EGOMAT" convert -f webp "$TMP/photo.png"
 check "webp exists" test -s "$TMP/photo.webp"

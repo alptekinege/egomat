@@ -17,6 +17,7 @@ Usage:
   $EGOMAT_NAME menu ACTION [PARAM] FILE...
   $EGOMAT_NAME install [options]
   $EGOMAT_NAME uninstall [options]
+  $EGOMAT_NAME completion SHELL
   $EGOMAT_NAME version | help [COMMAND]
 
 Every command accepts -h/--help, and "help COMMAND" shows the same text:
@@ -328,6 +329,7 @@ Options (passed to install.sh):
       --no-kde         skip the KDE/Dolphin service menu
       --no-freedesktop skip the Nautilus, Nemo, Thunar, and Caja actions
       --no-app         skip the application-menu entry and the icon
+      --no-completions skip the Bash, Zsh, and Fish completions
       --gui            also build and install egomat-gui (needs Go 1.23+)
       --no-gui         do not build egomat-gui (default)
   -n, --dry-run        print what would be done, change nothing
@@ -391,6 +393,34 @@ Examples:
 EOF
 }
 
+usage_completion() {
+  cat <<EOF
+$EGOMAT_NAME completion — print shell completion for Bash, Zsh, or Fish.
+
+Usage:
+  $EGOMAT_NAME completion SHELL
+
+SHELL is one of:
+  bash  zsh  fish
+
+Options:
+  -h, --help           show this help and exit
+
+Behaviour:
+  Prints a completion script on standard output. The script completes
+  commands, options, format and optimization-level values, and file
+  arguments. install.sh installs these automatically; use this command
+  when installing by hand or to inspect the script.
+
+Examples:
+  $EGOMAT_NAME completion bash
+  $EGOMAT_NAME completion bash > ~/.local/share/bash-completion/completions/egomat
+  $EGOMAT_NAME completion zsh > ~/.zfunc/_egomat
+  $EGOMAT_NAME completion fish > ~/.config/fish/completions/egomat.fish
+  $EGOMAT_NAME help completion
+EOF
+}
+
 usage_help() {
   cat <<EOF
 $EGOMAT_NAME help — show help for Egomat or for one command.
@@ -402,7 +432,7 @@ Usage:
 
 COMMAND is one of:
   convert  optimize  resize  info  formats  assistant  menu
-  install  uninstall  version  help
+  install  uninstall  completion  version  help
 
 With no COMMAND, the general help is shown. With a COMMAND, that
 command's options and examples are shown. Both forms exit 0; an
@@ -429,6 +459,7 @@ show_usage_for() {
     menu) usage_menu ;;
     install) usage_install ;;
     uninstall) usage_uninstall ;;
+    completion) usage_completion ;;
     version|-V|--version) usage_version ;;
     help|-h|--help) usage_help ;;
     '') usage ;;
@@ -442,6 +473,38 @@ show_usage_for() {
 
 cmd_help() {
   show_usage_for "${1-}"
+}
+
+# ---------------------------------------------------------------------------
+# completion — print the completion script for one shell
+# ---------------------------------------------------------------------------
+cmd_completion() {
+  local shell=${1-} script
+  if args_have_help_flag "$@"; then
+    usage_completion
+    return 0
+  fi
+  case $shell in
+    bash) script=$EGOMAT_ROOT/share/completions/egomat.bash ;;
+    zsh)  script=$EGOMAT_ROOT/share/completions/egomat.zsh ;;
+    fish) script=$EGOMAT_ROOT/share/completions/egomat.fish ;;
+    '')
+      log_error "completion: missing shell (bash, zsh, or fish)"
+      printf "Try '%s help completion'.\n" "$EGOMAT_NAME" >&2
+      return 2
+      ;;
+    *)
+      log_error "completion: unsupported shell: $shell"
+      printf "Supported shells: bash zsh fish.\n" >&2
+      return 2
+      ;;
+  esac
+  if [ ! -r "$script" ]; then
+    log_error "completion: script not found: $script"
+    printf "Reinstall with '%s install'.\n" "$EGOMAT_NAME" >&2
+    return 1
+  fi
+  cat "$script"
 }
 
 # ---------------------------------------------------------------------------

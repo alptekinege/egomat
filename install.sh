@@ -18,6 +18,7 @@ DO_KDE=1
 DO_FM=1
 DO_APP=1
 DO_GUI=0
+DO_COMPLETIONS=1
 
 have() { command -v -- "$1" >/dev/null 2>&1; }
 
@@ -47,6 +48,7 @@ Usage: ./install.sh [options]
   --no-kde            skip the KDE/Dolphin service menu
   --no-freedesktop    skip the Nautilus, Nemo, Thunar and Caja actions
   --no-app            skip the application-menu entry and the icon
+  --no-completions    skip the Bash, Zsh and Fish completions
   --gui               build and install the egomat-gui window and tray app (needs Go)
   -n, --dry-run       print what would be done, change nothing
   -h, --help          show this text
@@ -67,6 +69,7 @@ while [ $# -gt 0 ]; do
     --no-kde)         DO_KDE=0; shift ;;
     --no-freedesktop) DO_FM=0; shift ;;
     --no-app)         DO_APP=0; shift ;;
+    --no-completions) DO_COMPLETIONS=0; shift ;;
     --gui)            DO_GUI=1; shift ;;
     --no-gui)         DO_GUI=0; shift ;;
     -n|--dry-run)     DRY=1; shift ;;
@@ -374,6 +377,16 @@ ACTIONS
   return 0
 }
 
+step_completions() {
+  say "  shell completions -> $DATA_HOME/{bash-completion/completions,zsh/site-functions,fish/vendor_completions.d}"
+  inst "$SRC/share/completions/egomat.bash" \
+    "$DATA_HOME/bash-completion/completions/egomat" 0644 || return 1
+  inst "$SRC/share/completions/egomat.zsh" \
+    "$DATA_HOME/zsh/site-functions/_egomat" 0644 || return 1
+  inst "$SRC/share/completions/egomat.fish" \
+    "$DATA_HOME/fish/vendor_completions.d/egomat.fish" 0644 || return 1
+}
+
 step_refresh() {
   [ "$DRY" -eq 1 ] && return 0
   if [ -d "$DATA_HOME/applications" ] && have update-desktop-database; then
@@ -398,6 +411,7 @@ step_link         || { warn "could not create the launcher"; exit 1; }
 if [ "$DO_KDE" -eq 1 ]; then step_kde || exit 1; fi
 if [ "$DO_APP" -eq 1 ]; then step_app || exit 1; fi
 if [ "$DO_GUI" -eq 1 ]; then step_gui || exit 1; fi
+if [ "$DO_COMPLETIONS" -eq 1 ]; then step_completions || exit 1; fi
 if [ "$DO_FM"  -eq 1 ]; then step_filemanagers || exit 1; fi
 step_refresh
 
@@ -415,3 +429,9 @@ case ":$PATH:" in
      say "Note: $BIN is not in your PATH. Add it, e.g.:"
      say "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.profile" ;;
 esac
+if [ "$DO_COMPLETIONS" -eq 1 ]; then
+  say ""
+  say "Completions: open a new shell to pick them up. For zsh, if _egomat"
+  say "is not found, add the site-functions directory to your fpath first:"
+  say "  echo 'fpath=($DATA_HOME/zsh/site-functions \$fpath)' >> ~/.zshrc"
+fi

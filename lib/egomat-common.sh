@@ -101,7 +101,7 @@ human() {
 # Print a path that does not exist yet, derived from $1.
 unique_path() {
   local p=$1 n=1 dir base stem ext cand
-  if [ ! -e "$p" ]; then
+  if [ ! -e "$p" ] && [ ! -L "$p" ]; then
     printf '%s\n' "$p"
     return 0
   fi
@@ -113,7 +113,7 @@ unique_path() {
   esac
   while :; do
     cand="$dir/$stem-$n$ext"
-    if [ ! -e "$cand" ]; then
+    if [ ! -e "$cand" ] && [ ! -L "$cand" ]; then
       printf '%s\n' "$cand"
       return 0
     fi

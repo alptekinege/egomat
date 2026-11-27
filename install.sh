@@ -82,16 +82,20 @@ fi
 PREFIX=${PREFIX%/}
 [ -n "$PREFIX" ] || PREFIX=/
 
-BIN="$PREFIX/bin"
-LIB="$PREFIX/lib/egomat"
-EGOMAT="$BIN/egomat"
-
 if [ "$MODE" = system ] || [ "$PREFIX_EXPLICIT" -eq 1 ]; then
   DATA_HOME="$PREFIX/share"
 else
   DATA_HOME="${XDG_DATA_HOME:-$PREFIX/share}"
 fi
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+PREFIX=$(realpath -m -- "$PREFIX") || { warn "could not resolve install prefix"; exit 1; }
+DATA_HOME=$(realpath -m -- "$DATA_HOME") || { warn "could not resolve data directory"; exit 1; }
+CONFIG_HOME=$(realpath -m -- "$CONFIG_HOME") || { warn "could not resolve config directory"; exit 1; }
+BIN="$PREFIX/bin"
+LIB="$PREFIX/lib/egomat"
+EGOMAT="$BIN/egomat"
+MANIFEST="$LIB/.egomat-manifest"
 
 VERSION=$(sed -n 's/^EGOMAT_VERSION="\([^"]*\)".*/\1/p' "$SRC/lib/egomat-common.sh" 2>/dev/null | head -n 1)
 [ -n "$VERSION" ] || VERSION=0.0.0
@@ -100,6 +104,86 @@ VERSION=$(sed -n 's/^EGOMAT_VERSION="\([^"]*\)".*/\1/p' "$SRC/lib/egomat-common.
 # Helpers
 # ---------------------------------------------------------------------------
 esc() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
+
+path_within() {
+  local path=$1 root=$2
+  if [ "$root" = / ]; then
+    [[ "$path" = /* ]]
+  else
+    [[ "$path" = "$root" || "$path" = "$root/"* ]]
+  fi
+}
+
+managed_path() {
+  local path=$1
+  path_within "$path" "$PREFIX" || path_within "$path" "$DATA_HOME" || path_within "$path" "$CONFIG_HOME"
+}
+
+manifest_has() {
+  local wanted_kind=$1 wanted_path=$2 kind path
+  [ -f "$MANIFEST" ] || return 1
+  while IFS= read -r -d '' kind && IFS= read -r -d '' path; do
+    [ "$kind" = "$wanted_kind" ] && [ "$path" = "$wanted_path" ] && return 0
+  done < "$MANIFEST"
+  return 1
+}
+
+record_path() {
+  local kind=$1 path=$2 existing_kind existing_path
+  [ "$DRY" -eq 1 ] && return 0
+  if [ ! -e "$MANIFEST" ] && [ ! -L "$MANIFEST" ]; then
+    : > "$MANIFEST" || return 1
+    printf 'F\0%s\0' "$MANIFEST" >> "$MANIFEST" || return 1
+  elif [ -L "$MANIFEST" ] || [ ! -f "$MANIFEST" ]; then
+    warn "install manifest is not a regular file: $MANIFEST"
+    return 1
+  fi
+  while IFS= read -r -d '' existing_kind && IFS= read -r -d '' existing_path; do
+    [ "$existing_kind" = "$kind" ] && [ "$existing_path" = "$path" ] && return 0
+  done < "$MANIFEST"
+  printf '%s\0%s\0' "$kind" "$path" >> "$MANIFEST"
+}
+
+init_manifest() {
+  [ "$DRY" -eq 1 ] && return 0
+  if [ ! -e "$MANIFEST" ] && [ ! -L "$MANIFEST" ]; then
+    : > "$MANIFEST" || return 1
+    printf 'F\0%s\0' "$MANIFEST" >> "$MANIFEST" || return 1
+  elif [ -L "$MANIFEST" ] || [ ! -f "$MANIFEST" ]; then
+    warn "install manifest is not a regular file: $MANIFEST"
+    return 1
+  fi
+  manifest_has F "$MANIFEST" || printf 'F\0%s\0' "$MANIFEST" >> "$MANIFEST"
+}
+
+ensure_dir() {
+  local dir=$1 current=$1 parent path canonical i
+  local -a missing=()
+  while [ ! -d "$current" ]; do
+    if [ -e "$current" ] || [ -L "$current" ]; then
+      warn "not a directory: $current"
+      return 1
+    fi
+    missing+=("$current")
+    parent=$(dirname_of "$current")
+    [ "$parent" != "$current" ] || break
+    current=$parent
+  done
+  [ "$DRY" -eq 1 ] && return 0
+  mkdir -p -- "$dir" || return 1
+  for ((i=${#missing[@]} - 1; i >= 0; i--)); do
+    path=${missing[i]}
+    canonical=$(realpath -m -- "$path") || return 1
+    if managed_path "$canonical"; then
+      record_path D "$canonical" || return 1
+    fi
+  done
+}
+
+record_installed_file() {
+  local path=$1
+  record_path F "$path"
+}
 
 # inst SOURCE DEST [MODE]
 inst() {
@@ -112,7 +196,8 @@ inst() {
     warn "missing file: $src"
     return 1
   fi
-  mkdir -p -- "$(dirname_of "$dst")" || return 1
+  ensure_dir "$(dirname_of "$dst")" || return 1
+  record_installed_file "$dst" || return 1
   cp -f -- "$src" "$dst" || return 1
   chmod "$mode" -- "$dst" || return 1
 }
@@ -138,7 +223,8 @@ render() {
   for kv in "$@"; do
     sedargs+=(-e "s|@${kv%%=*}@|$(esc "${kv#*=}")|g")
   done
-  mkdir -p -- "$(dirname_of "$dst")" || return 1
+  ensure_dir "$(dirname_of "$dst")" || return 1
+  record_installed_file "$dst" || return 1
   sed "${sedargs[@]}" -- "$src" >"$dst" || return 1
   chmod "$mode" -- "$dst" || return 1
 }
@@ -148,17 +234,16 @@ render() {
 # ---------------------------------------------------------------------------
 step_payload() {
   say "  program files -> $LIB"
+  ensure_dir "$LIB" || return 1
+  init_manifest || return 1
   inst "$SRC/bin/egomat" "$LIB/bin/egomat" 0755 || return 1
   local f
   for f in "$SRC"/lib/*.sh; do
     inst "$f" "$LIB/lib/$(basename -- "$f")" 0644 || return 1
   done
-  if [ "$DRY" -eq 0 ]; then
-    mkdir -p -- "$LIB/share" || return 1
-    cp -Rf -- "$SRC/share/." "$LIB/share/" || return 1
-  else
-    printf '   + %s\n' "$LIB/share/"
-  fi
+  while IFS= read -r -d '' f; do
+    inst "$f" "$LIB/share/${f#"$SRC/share/"}" 0644 || return 1
+  done < <(find "$SRC/share" -type f -print0)
   inst "$SRC/install.sh"   "$LIB/install.sh"   0755 || return 1
   inst "$SRC/uninstall.sh" "$LIB/uninstall.sh" 0755 || return 1
   inst "$SRC/README.md"    "$LIB/README.md"    0644 || return 1
@@ -171,7 +256,8 @@ step_link() {
     printf '   + %s -> %s\n' "$EGOMAT" "$LIB/bin/egomat"
     return 0
   fi
-  mkdir -p -- "$BIN" || return 1
+  ensure_dir "$BIN" || return 1
+  record_installed_file "$EGOMAT" || return 1
   if ln -sfn "$LIB/bin/egomat" "$EGOMAT" 2>/dev/null; then
     return 0
   fi

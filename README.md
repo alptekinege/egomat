@@ -57,10 +57,13 @@ sudo bash ./uninstall.sh --system
 bash ./uninstall.sh --prefix "$HOME/opt/egomat"
 ```
 
-The uninstaller does not record which files it created. For a default user
-install, it also recursively removes the Nautilus and Caja `Egomat` script
-directories. Keep unrelated scripts out of those directories until uninstall
-handling is more selective.
+The installer records its managed files and directories in a manifest under
+the Egomat library directory. Uninstall removes only listed files and removes
+listed directories only when they are empty, so unrelated scripts in Nautilus
+or Caja `Egomat` directories are preserved. A `--prefix` uninstall checks that
+each removal stays within that prefix. For installations made before manifests
+were introduced, run `install.sh` once with the same options before uninstalling
+so it can record the installed paths.
 
 If the Dolphin submenu does not appear right away, log out and back in, or run
 `kbuildsycoca6` (Plasma 6) / `kbuildsycoca5` (Plasma 5).

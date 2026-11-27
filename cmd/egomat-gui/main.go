@@ -493,12 +493,23 @@ func (g *gui) finishJob(j *job, err error) {
 	g.app.SendNotification(fyne.NewNotification(title, text))
 }
 
+// maxLogLines keeps the log entry bounded during long jobs: once the
+// cap is reached, the oldest line is dropped for each new one.
+const maxLogLines = 2000
+
 func (g *gui) appendLog(line string) {
-	if g.log.Text == "" {
-		g.log.SetText(line)
+	text := g.log.Text
+	if text == "" {
+		text = line
 	} else {
-		g.log.SetText(g.log.Text + "\n" + line)
+		text = text + "\n" + line
 	}
+	if lines := strings.Count(text, "\n") + 1; lines > maxLogLines {
+		if i := strings.IndexByte(text, '\n'); i >= 0 {
+			text = text[i+1:]
+		}
+	}
+	g.log.SetText(text)
 }
 
 func (g *gui) savePrefs() {

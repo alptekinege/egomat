@@ -275,6 +275,23 @@ check "empty --quality value is refused" bash -c \
 check "empty --level value is refused" bash -c \
   "! '$EGOMAT' optimize --level= '$conf/photo.png' >/dev/null 2>&1"
 
+# A suffix becomes part of the output name; a "/" in it would turn the
+# name into a path and write outside the intended directory.
+check "convert refuses a suffix containing /" bash -c \
+  "! '$EGOMAT' convert -f webp --suffix 'a/b' '$conf/photo.png' >/dev/null 2>&1"
+check "optimize refuses a suffix containing /" bash -c \
+  "! '$EGOMAT' optimize -l light --suffix 'a/b' '$conf/photo.png' >/dev/null 2>&1"
+check "resize refuses a suffix containing /" bash -c \
+  "! '$EGOMAT' resize 200 --suffix 'a/b' '$conf/photo.png' >/dev/null 2>&1"
+
+# The global --ui selector only accepts its documented values.
+check "unknown --ui value is refused" bash -c \
+  "! '$EGOMAT' --ui=telepathy version >/dev/null 2>&1"
+check "empty --ui value is refused" bash -c \
+  "! '$EGOMAT' --ui= version >/dev/null 2>&1"
+check "--ui=none version runs" bash -c \
+  "'$EGOMAT' --ui=none version >/dev/null 2>&1"
+
 # A successful run must not leave egomat temporaries behind.
 check "convert leaves no temporaries" bash -c \
   "! ls '$conf'/'.egomat-'* >/dev/null 2>&1"

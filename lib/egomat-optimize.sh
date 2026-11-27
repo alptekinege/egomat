@@ -478,8 +478,8 @@ optimize_one() {
       [ "$tries" -lt 100 ] || break
     done
   fi
-  if [ "$claimed" -ne 1 ] && [ "$policy" != overwrite ] &&
-     [ "$target" != "$src" ] && { [ -e "$target" ] || [ -L "$target" ]; }; then
+  if [ "$claimed" -ne 1 ] && [ "$target" != "$src" ] &&
+     [ "$policy" != overwrite ] && { [ -e "$target" ] || [ -L "$target" ]; }; then
     # The claim loop gave up on an existing target: writing now would
     # clobber a file this run never claimed.
     log_error "cannot reserve an output name for: $src"
@@ -618,6 +618,9 @@ cmd_optimize() {
   [ -n "$OPT_LEVEL" ] ||
     die "optimize: --level must be one of: light, balanced, aggressive"
   [ ${#files[@]} -gt 0 ] || die "optimize: no input files"
+  if [ -n "$OPT_SUFFIX" ]; then
+    suffix_is_safe "$OPT_SUFFIX" || die "optimize: --suffix must not contain '/'"
+  fi
   expand_inputs optimize "${files[@]}"
   if [ "$OPT_CONFLICT" = ask ] && ! conflict_ask_available; then
     die "optimize: --on-conflict ask needs an interactive session (a terminal or desktop dialogs); use rename, skip, or overwrite"

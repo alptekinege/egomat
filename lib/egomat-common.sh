@@ -180,6 +180,15 @@ norm_conflict() {
   esac
 }
 
+# A --suffix becomes part of the output file name, so a "/" in it would
+# turn the name into a path and write outside the intended directory.
+suffix_is_safe() {
+  case $1 in
+    */*) return 1 ;;
+    *)   return 0 ;;
+  esac
+}
+
 # True when someone can answer a conflict prompt: a terminal on stdin, or
 # desktop dialogs in an interactive session.
 conflict_ask_available() {

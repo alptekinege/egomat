@@ -111,7 +111,10 @@ VERSION=$(sed -n 's/^EGOMAT_VERSION="\([^"]*\)".*/\1/p' "$SRC/lib/egomat-common.
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-esc() { printf '%s' "$1" | sed 's/[&|\\]/\\&/g'; }
+# Escape a value for use inside a double-quoted Exec= line of a .desktop
+# file. Within such a string, backslash escapes " and \ itself, and the
+# sed replacement characters & and | (the delimiter) must also be escaped.
+esc() { printf '%s' "$1" | sed 's/[&|\\"]/\\&/g'; }
 
 path_within() {
   local path=$1 root=$2
@@ -270,9 +273,12 @@ step_link() {
   if ln -sfn "$LIB/bin/egomat" "$EGOMAT" 2>/dev/null; then
     return 0
   fi
+  # Fallback for file systems without symlinks. %q quotes the path so
+  # that spaces, quotes and other shell metacharacters stay literal.
   {
-    printf '#!/bin/sh\n'
-    printf 'exec "%s" "$@"\n' "$LIB/bin/egomat"
+    printf '#!/bin/sh\nexec '
+    printf '%q' "$LIB/bin/egomat"
+    printf ' "$@"\n'
   } >"$EGOMAT" || return 1
   chmod 0755 -- "$EGOMAT" || return 1
 }

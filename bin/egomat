@@ -43,7 +43,8 @@ if [ ! -d "$EGOMAT_LIBDIR" ]; then
 fi
 
 for _lib in common tools ui convert optimize menu; do
-  if [ ! -r "$EGOMAT_LIBDIR/egomat-$_lib.sh" ]; then
+  if [ ! -f "$EGOMAT_LIBDIR/egomat-$_lib.sh" ] ||
+     [ ! -r "$EGOMAT_LIBDIR/egomat-$_lib.sh" ]; then
     printf 'egomat: error: missing library: %s\n' "$EGOMAT_LIBDIR/egomat-$_lib.sh" >&2
     exit 1
   fi
@@ -61,7 +62,16 @@ while [ $# -gt 0 ]; do
     --verbose) EGOMAT_LOG_LEVEL=verbose; shift ;;
     --no-ui)   EGOMAT_UI=none; shift ;;
     --ui)      EGOMAT_UI=auto; shift ;;
-    --ui=*)    EGOMAT_UI=${1#*=}; shift ;;
+    --ui=*)
+      EGOMAT_UI=${1#*=}
+      case $EGOMAT_UI in
+        none|auto|dialog) ;;
+        *)
+          log_error "unknown --ui value: $EGOMAT_UI (use none, auto, or dialog)"
+          exit 2
+          ;;
+      esac
+      shift ;;
     *)         break ;;
   esac
 done

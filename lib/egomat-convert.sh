@@ -422,6 +422,9 @@ cmd_convert() {
   if [ -n "$OPT_RESIZE" ]; then
     check_geometry "$OPT_RESIZE" || die "convert: invalid size '$OPT_RESIZE'"
   fi
+  if [ -n "$OPT_SUFFIX" ]; then
+    suffix_is_safe "$OPT_SUFFIX" || die "convert: --suffix must not contain '/'"
+  fi
   if [ -n "$OPT_QUALITY" ]; then
     case $OPT_QUALITY in
       *[!0-9]*) die "convert: quality must be a number between 1 and 100" ;;
@@ -463,6 +466,8 @@ cmd_resize() {
   [ -n "$geo" ] || die "resize: a size is required, e.g. 1920 or 1920x1080"
   check_geometry "$geo" || die "resize: invalid size '$geo'"
   [ "${1-}" = "--" ] && shift
+  # The suffix is parsed later; validate the parsed form below, after the
+  # option loop, so both --suffix and --suffix= forms are covered.
 
   local outdir="" suffix="-resized" conflict=rename
   local -a files=()
@@ -497,6 +502,8 @@ cmd_resize() {
     esac
   done
   [ ${#files[@]} -gt 0 ] || die "resize: no input files"
+  [ -z "$suffix" ] || suffix_is_safe "$suffix" ||
+    die "resize: --suffix must not contain '/'"
   expand_inputs resize "${files[@]}"
   if [ "$conflict" = ask ] && ! conflict_ask_available; then
     die "resize: --on-conflict ask needs an interactive session (a terminal or desktop dialogs); use rename, skip, or overwrite"

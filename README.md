@@ -193,6 +193,19 @@ shows which known commands are present.
 The `assistant` command needs `kdialog` or `zenity`. The `formats` report is a
 tool inventory, not a probe of every codec and source/target combination.
 
+## Tests
+
+```sh
+bash ./tests/smoke.sh
+bash ./tests/real-images.sh                 # uses JPEGs in sample-images/
+bash ./tests/real-images.sh /path/to/photos  # use another sample directory
+```
+
+The real-image test stages copies in a temporary directory, checks resized PNG
+and optional AVIF conversion, and exercises all JPEG optimization levels. It
+does not modify the sample files. ImageMagick is required; AVIF conversion and
+JPEG optimization are skipped when their backends are unavailable.
+
 ## File managers
 
 The installer can add actions for:
@@ -220,6 +233,7 @@ share/                  desktop and file-manager templates
 install.sh              installer
 uninstall.sh            uninstaller
 tests/smoke.sh          end-to-end smoke script
+tests/real-images.sh    real-photo conversion and optimization checks
 ```
 
 Run scripts with `bash <script>` if the checkout does not carry executable

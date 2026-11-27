@@ -23,12 +23,9 @@ format_supported() {
 
 # Accept ImageMagick geometry: 1920, 1920x1080, 800x800!, 1920x>, x1080 ...
 check_geometry() {
-  case ${1-} in
-    '') return 1 ;;
-    *[!0-9xX!<>^%]*) return 1 ;;
-    x|X) return 1 ;;
-  esac
-  return 0
+  local g=${1-} allowed='^[0-9xX!<>^%]+$'
+  [[ $g =~ $allowed ]] || return 1
+  case $g in x|X) return 1 ;; esac
 }
 
 # ---------------------------------------------------------------------------

@@ -373,6 +373,25 @@ check "recursive walk ignores hidden entries" bash -c \
   "! test -e '$TMP/tree-out4/.h.webp' && ! test -e '$TMP/tree-out4/h.webp'"
 check "recursive walk does not follow directory symlinks" bash -c \
   "! test -e '$TMP/tree-out4/escape.webp'"
+
+# --- odd file names ---------------------------------------------------------
+# Relative names that begin with a dash must not be parsed as options by the
+# backends, and a dashed directory must still be walked with --recursive.
+dashdir="$TMP/-dashed"
+mkdir -p -- "$dashdir"
+cp -- "$TMP/photo.png" "$dashdir/inner.png"
+cp -- "$TMP/photo.png" "$TMP/-dash.png"
+check "info reads a dashed file name" bash -c \
+  "cd '$TMP' && '$EGOMAT' info -- -dash.png | grep -q 'pixels'"
+check "convert handles a dashed file name" bash -c \
+  "cd '$TMP' && '$EGOMAT' convert -f webp -- -dash.png && test -s -dash.webp"
+check "optimize accepts a dashed file name" bash -c \
+  "cd '$TMP' && '$EGOMAT' optimize -l light -- -dash.png && test -s -dash.png"
+check "recursive convert walks a dashed directory" bash -c \
+  "cd '$TMP' && '$EGOMAT' convert -f webp --recursive -- -dashed && test -s -dashed/inner.webp"
+check "recursive optimize walks a dashed directory" bash -c \
+  "cd '$TMP' && '$EGOMAT' optimize -l light --recursive -- -dashed && test -s -dashed/inner.png"
+rm -f -- "$TMP/-dash.png" "$TMP/-dash.webp" "$TMP/-dashed/inner.webp"
 check "recursive convert of an all-text directory succeeds" bash -c \
   "'$EGOMAT' convert -f webp --recursive -o '$TMP/tree-text' '$tree/only-text' 2>&1 | grep -q '1 input(s) skipped'"
 check "explicit non-image file still fails" bash -c \

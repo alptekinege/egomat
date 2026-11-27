@@ -65,6 +65,38 @@ egomat_remove_temp() {
   fi
 }
 
+# ImageMagick 6 expands the wildcard characters *, ?, [, and ] in file
+# names on its own, so a file literally named photo[1].jpg can silently
+# read photo1.jpg instead — the wrong pixels, and with --delete-source the
+# deletion of the real file. IM 7 dropped that behaviour, but the IM 6
+# backend stays supported. Set the variable named by $1 to a
+# wildcard-free path for IM to read: a temporary symlink when the path in
+# $2 contains wildcard characters, the path unchanged otherwise. Runs in
+# the calling shell on purpose: a command substitution would register the
+# temporary in a subshell's own EGOMAT_TEMP_FILES copy, which the exit
+# traps of the main shell never see. Requires the traps to be installed.
+im_safe_source() {
+  local var=$1 src=$2 dir
+  case $src in
+    *[?*]*|*'['*|*']'*) ;;
+    *) printf -v "$var" '%s' "$src"; return 0 ;;
+  esac
+  dir=$(dirname_of "$src")
+  case $dir in *[?*]*|*'['*|*']'*) dir=. ;; esac
+  if ! egomat_temp_file "$dir" imsrc; then
+    printf -v "$var" '%s' "$src"
+    return 0
+  fi
+  if rm -f -- "$EGOMAT_TEMP_PATH" &&
+     ln -s -- "$src" "$EGOMAT_TEMP_PATH" 2>/dev/null; then
+    printf -v "$var" '%s' "$EGOMAT_TEMP_PATH"
+  else
+    egomat_forget_temp "$EGOMAT_TEMP_PATH"
+    printf -v "$var" '%s' "$src"
+  fi
+  return 0
+}
+
 egomat_install_temp_traps() {
   trap 'egomat_cleanup_temps' EXIT
   trap 'egomat_cleanup_temps; exit 129' HUP
@@ -82,6 +114,8 @@ image_format() {
 
 image_readable() {
   local f=$1 ext=${2-} m dims input
+  f=$(safe_path "$f")
+  im_safe_source f "$f"
   input=$f
   [ -z "$ext" ] || input="$(image_format "$ext"):$f"
   if m=$(detect_magick); then
@@ -327,7 +361,8 @@ backup_of() {
 }
 
 optimize_one() {
-  local src=$1
+  local src
+  src=$(safe_path "$1")
   local level=$OPT_LEVEL
   local ext dir base stem sfx target work before after policy claimed tries
 
@@ -442,6 +477,14 @@ optimize_one() {
       tries=$((tries + 1))
       [ "$tries" -lt 100 ] || break
     done
+  fi
+  if [ "$claimed" -ne 1 ] && [ "$policy" != overwrite ] &&
+     [ "$target" != "$src" ] && { [ -e "$target" ] || [ -L "$target" ]; }; then
+    # The claim loop gave up on an existing target: writing now would
+    # clobber a file this run never claimed.
+    log_error "cannot reserve an output name for: $src"
+    EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
+    return 1
   fi
 
   if ! egomat_temp_file "$dir" opt "$ext"; then

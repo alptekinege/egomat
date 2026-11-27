@@ -163,6 +163,11 @@ rt_convert() {
       ;;
   esac
 
+  # IM 6 expands wildcard characters in file names itself; hand every
+  # backend a wildcard-free link when the name needs one. The other
+  # backends follow the link without trouble.
+  im_safe_source src "$src"
+
   local rc=1
   if rt_try_im "$src" "$out" "$fmt"; then
     rc=0
@@ -172,8 +177,9 @@ rt_convert() {
     rc=0
   fi
 
-  # Nothing to clean here: the raster temporary is tracked in
-  # EGOMAT_TEMP_FILES and removed by the exit traps.
+  # Nothing to clean from the raster step or the link above: their
+  # temporaries are tracked in EGOMAT_TEMP_FILES and removed by the exit
+  # traps.
   return $rc
 }
 
@@ -181,7 +187,8 @@ rt_convert() {
 # One file
 # ---------------------------------------------------------------------------
 convert_one() {
-  local src=$1
+  local src
+  src=$(safe_path "$1")
   local fmt=$OPT_FORMAT
   local dir base out tmp before after policy claimed tries
   local kind=${OPT_KIND:-convert} decision="new file" note=""
@@ -284,6 +291,14 @@ convert_one() {
       tries=$((tries + 1))
       [ "$tries" -lt 100 ] || break
     done
+  fi
+  if [ "$claimed" -ne 1 ] && [ "$policy" != overwrite ] &&
+     { [ -e "$out" ] || [ -L "$out" ]; }; then
+    # The claim loop gave up on an existing target: writing now would
+    # clobber a file this run never claimed.
+    log_error "cannot reserve an output name for: $src"
+    EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
+    return 1
   fi
 
   # Keep the target extension on the temporary file so encoders can sniff
@@ -521,6 +536,8 @@ cmd_info() {
   fi
   [ "${1-}" = "--" ] && shift
   [ $# -gt 0 ] || die "info: no input files"
+  # img_dims may need a wildcard-free IM source name (see im_safe_source).
+  egomat_install_temp_traps
   local f dims fmt sz
   for f in "$@"; do
     if [ ! -f "$f" ]; then

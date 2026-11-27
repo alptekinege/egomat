@@ -38,6 +38,8 @@ im() {
 # Print "WIDTH HEIGHT" for an image, or nothing when it cannot be read.
 img_dims() {
   local f=$1 m out=""
+  f=$(safe_path "$f")
+  im_safe_source f "$f"
   if m=$(detect_magick); then
     if [ "$m" = magick ]; then
       out=$(magick identify -format '%w %h' "$f" 2>/dev/null)

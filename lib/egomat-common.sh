@@ -46,6 +46,16 @@ have() {
   command -v -- "$1" >/dev/null 2>&1
 }
 
+# Prefix "./" to a path that an external tool could otherwise parse as an
+# option (ffprobe, pngquant, gifsicle, svgo, ...). Every backend accepts
+# the prefixed form unchanged.
+safe_path() {
+  case $1 in
+    -*) printf './%s\n' "$1" ;;
+    *)  printf '%s\n' "$1" ;;
+  esac
+}
+
 # True when -h/--help appears before any "--" separator. The separator
 # matters: "info -- --help" names a file called --help, it is not a help
 # request. Callers check this before any other argument validation so
@@ -262,8 +272,8 @@ expand_inputs() {
         fi
       # Hidden entries are pruned, and only regular files and symlinks are
       # candidates; -mindepth keeps the directory itself out of the prune.
-      done < <(find -H "$item" -mindepth 1 \( -name '.*' -prune \) -o \
-        \( \( -type f -o -type l \) -print0 \) | sort -z)
+      done < <(find -H "$(safe_path "$item")" -mindepth 1 \( -name '.*' -prune \) -o \
+        \( \( -type f -o -type l \) -print0 \) | LC_ALL=C sort -z)
     else
       # Missing, or not a regular file: keep it so the per-file handler
       # reports the failure.

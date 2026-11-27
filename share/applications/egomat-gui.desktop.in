@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Egomat Tray
+GenericName=Image Converter and Optimizer
+Comment=Convert and optimize images from a small window and system tray
+Exec="@EGOMAT_GUI@"
+Icon=egomat
+Terminal=false
+StartupNotify=true
+Categories=Graphics;2DGraphics;Utility;
+MimeType=image/png;image/jpeg;image/gif;image/webp;image/avif;image/bmp;image/tiff;image/svg+xml;image/x-icon;
+Keywords=image;convert;optimize;optimise;compress;resize;webp;avif;png;jpeg;gif;pdf;tray;

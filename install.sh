@@ -17,6 +17,7 @@ DRY=0
 DO_KDE=1
 DO_FM=1
 DO_APP=1
+DO_GUI=0
 
 have() { command -v -- "$1" >/dev/null 2>&1; }
 
@@ -46,6 +47,7 @@ Usage: ./install.sh [options]
   --no-kde            skip the KDE/Dolphin service menu
   --no-freedesktop    skip the Nautilus, Nemo, Thunar and Caja actions
   --no-app            skip the application-menu entry and the icon
+  --gui               build and install the egomat-gui window and tray app (needs Go)
   -n, --dry-run       print what would be done, change nothing
   -h, --help          show this text
 
@@ -65,6 +67,8 @@ while [ $# -gt 0 ]; do
     --no-kde)         DO_KDE=0; shift ;;
     --no-freedesktop) DO_FM=0; shift ;;
     --no-app)         DO_APP=0; shift ;;
+    --gui)            DO_GUI=1; shift ;;
+    --no-gui)         DO_GUI=0; shift ;;
     -n|--dry-run)     DRY=1; shift ;;
     -h|--help)        usage; exit 0 ;;
     *) warn "unknown option: $1"; usage >&2; exit 2 ;;
@@ -95,6 +99,7 @@ CONFIG_HOME=$(realpath -m -- "$CONFIG_HOME") || { warn "could not resolve config
 BIN="$PREFIX/bin"
 LIB="$PREFIX/lib/egomat"
 EGOMAT="$BIN/egomat"
+EGOMAT_GUI="$BIN/egomat-gui"
 MANIFEST="$LIB/.egomat-manifest"
 
 VERSION=$(sed -n 's/^EGOMAT_VERSION="\([^"]*\)".*/\1/p' "$SRC/lib/egomat-common.sh" 2>/dev/null | head -n 1)
@@ -216,6 +221,7 @@ render() {
   fi
   local -a sedargs=(
     -e "s|@EGOMAT@|$(esc "$EGOMAT")|g"
+    -e "s|@EGOMAT_GUI@|$(esc "$EGOMAT_GUI")|g"
     -e "s|@LIBDIR@|$(esc "$LIB")|g"
     -e "s|@VERSION@|$(esc "$VERSION")|g"
   )
@@ -280,6 +286,33 @@ step_app() {
     "$DATA_HOME/applications/egomat.desktop" 0644 || return 1
   inst "$SRC/share/icons/egomat.svg" \
     "$DATA_HOME/icons/hicolor/scalable/apps/egomat.svg" 0644 || return 1
+}
+
+step_gui() {
+  if ! have go; then
+    warn "--gui needs Go to build egomat-gui; install Go and rerun, or drop --gui"
+    return 1
+  fi
+  say "  egomat-gui -> $EGOMAT_GUI"
+  local built="$SRC/build/egomat-gui"
+  if [ "$DRY" -eq 1 ]; then
+    printf '   + %s\n' "$EGOMAT_GUI"
+    if [ "$DO_APP" -eq 1 ]; then
+      printf '   + %s\n' "$DATA_HOME/applications/egomat-gui.desktop"
+    fi
+    return 0
+  fi
+  mkdir -p -- "$SRC/build" || return 1
+  if ! (cd "$SRC" && go build -trimpath -ldflags='-s -w' -o "$built" ./cmd/egomat-gui); then
+    warn "could not build egomat-gui"
+    return 1
+  fi
+  inst "$built" "$EGOMAT_GUI" 0755
+  if [ "$DO_APP" -eq 1 ]; then
+    render "$SRC/share/applications/egomat-gui.desktop.in" \
+      "$DATA_HOME/applications/egomat-gui.desktop" 0644
+  fi
+  return 0
 }
 
 step_filemanagers() {
@@ -364,6 +397,7 @@ step_payload      || { warn "payload installation failed"; exit 1; }
 step_link         || { warn "could not create the launcher"; exit 1; }
 if [ "$DO_KDE" -eq 1 ]; then step_kde || exit 1; fi
 if [ "$DO_APP" -eq 1 ]; then step_app || exit 1; fi
+if [ "$DO_GUI" -eq 1 ]; then step_gui || exit 1; fi
 if [ "$DO_FM"  -eq 1 ]; then step_filemanagers || exit 1; fi
 step_refresh
 

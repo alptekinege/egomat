@@ -2,7 +2,9 @@
 
 Egomat is a Bash image converter and optimizer with a command-line interface and
 right-click actions for KDE Dolphin and other freedesktop file managers. It can
-convert, resize, optimize, and inspect image files.
+convert, resize, optimize, and inspect image files. An optional Go companion,
+`egomat-gui`, adds a small window and system-tray app on top of the same
+commands.
 
 ## Install
 
@@ -28,11 +30,14 @@ Other installer options:
 bash ./install.sh --prefix "$HOME/opt/egomat"
 bash ./install.sh --dry-run
 bash ./install.sh --no-kde --no-freedesktop --no-app
+bash ./install.sh --gui
 ```
 
 `--prefix DIR` places the program and its data under `DIR`. `--no-kde`,
 `--no-freedesktop`, and `--no-app` skip the corresponding integrations. The
-installer also accepts `--user` and `--system`.
+installer also accepts `--user` and `--system`. `--gui` additionally builds and
+installs the `egomat-gui` window and tray app, which needs Go 1.23 or newer; see
+[Desktop GUI and tray](#desktop-gui-and-tray).
 
 To fetch the current branch's upstream changes and reinstall Egomat, run the
 updater from a clean Git checkout:
@@ -79,6 +84,41 @@ The Egomat submenu and assistant provide these actions:
 | Convert to… | Prompts for a target format. |
 | Resize… | Prompts for ImageMagick-style geometry. |
 | Show image details | Reports format, dimensions, and file size when a reader is available. |
+
+## Desktop GUI and tray
+
+`egomat-gui` is a small optional companion written in Go. It never edits images
+itself: every job is delegated to the installed `egomat` command, so conversion
+and optimization keep the same validation, backup, and replacement behavior as
+the command line.
+
+Build it from a checkout (Go 1.23+):
+
+```sh
+go build -o build/egomat-gui ./cmd/egomat-gui
+```
+
+Or install it alongside the CLI with `bash ./install.sh --gui`, which places it
+at `~/.local/bin/egomat-gui` and adds an application-menu entry named
+**Egomat Tray**. The binary looks for `egomat` next to itself first, then on
+`PATH`, then at `~/.local/bin/egomat`.
+
+The window offers:
+
+- **Add images… / Add folder…** plus drag-and-drop, with a remove/clear list.
+- **Convert** to any supported target with a quality slider, output folder, and
+  suffix.
+- **Optimize** at the `light`, `balanced`, or `aggressive` level, with an
+  optional original backup.
+- **Resize** using the same ImageMagick-style geometry as `egomat resize`.
+- Live output and a desktop notification when a run finishes.
+
+The tray icon gives quick access to show/hide the window, repeat the last
+action, and quit. Closing the window keeps the app in the tray; use **Quit** in
+the window or the tray menu to exit. Pass `--no-tray` to start with only the
+window. Files given on the command line (`egomat-gui photo1.png photo2.jpg`) are
+loaded into the list at startup. The last-used action and options are remembered
+between runs.
 
 ## Command line
 
@@ -197,7 +237,9 @@ color-managed display even when the pixel data is preserved.
 
 Egomat requires Bash 4.2+ and common GNU/Linux command-line utilities. It does
 not bundle image encoders. Install only the backends you need; `egomat formats`
-shows which known commands are present.
+shows which known commands are present. The optional `egomat-gui` app requires
+Go 1.23+ to build and the [Fyne](https://fyne.io) toolkit, which is fetched by
+`go build` automatically.
 
 | Task | Optional tools |
 | --- | --- |
@@ -247,6 +289,7 @@ lib/egomat-ui.sh        dialog helpers
 lib/egomat-convert.sh   conversion and resize engine
 lib/egomat-optimize.sh  optimization engine
 lib/egomat-menu.sh      assistant, usage, and format inventory
+cmd/egomat-gui/         optional Go window and tray app
 share/                  desktop and file-manager templates
 install.sh              installer
 update.sh               checkout updater and installer

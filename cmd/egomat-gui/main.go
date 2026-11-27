@@ -31,7 +31,7 @@ const appID = "com.github.alptekinege.egomat.gui"
 var imageExts = map[string]bool{
 	".png": true, ".jpg": true, ".jpeg": true, ".jfif": true,
 	".webp": true, ".avif": true, ".gif": true, ".bmp": true,
-	".tif": true, ".tiff": true, ".svg": true, ".ico": true,
+	".tif": true, ".tiff": true, ".svg": true, ".svgz": true, ".ico": true,
 }
 
 type gui struct {
@@ -292,7 +292,7 @@ func (g *gui) onAddFiles() {
 	}, g.win)
 	d.SetFilter(storage.NewExtensionFileFilter([]string{
 		".png", ".jpg", ".jpeg", ".jfif", ".webp", ".avif",
-		".gif", ".bmp", ".tif", ".tiff", ".svg", ".ico",
+		".gif", ".bmp", ".tif", ".tiff", ".svg", ".svgz", ".ico",
 	}))
 	d.Show()
 }

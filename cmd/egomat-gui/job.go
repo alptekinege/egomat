@@ -156,6 +156,11 @@ func runJob(ctx context.Context, bin string, j *job, emit func(string)) error {
 		for r.Scan() {
 			emit(r.Text())
 		}
+		// A line longer than the scanner buffer would otherwise end the
+		// stream silently; say so instead.
+		if err := r.Err(); err != nil {
+			emit(fmt.Sprintf("egomat-gui: output truncated (%v)", err))
+		}
 	}
 
 	outScan := bufio.NewScanner(stdout)

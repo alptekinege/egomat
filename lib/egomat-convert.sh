@@ -142,18 +142,23 @@ rt_try_ffmpeg() {
 
 # Convert $1 into $2 as $3, trying every backend that could do the job.
 rt_convert() {
-  local src=$1 out=$2 fmt=$3 cleanup="" ext raster
+  local src=$1 out=$2 fmt=$3 ext raster
   ext=$(file_ext "$src")
 
   case $ext in
     svg|svgz)
-      raster="$(dirname_of "$out")/.egomat-raster-$$.png"
-      if rt_rasterize_svg "$src" "$raster"; then
-        src=$raster
-        cleanup=$raster
-      else
-        rm -f -- "$raster"
-        log_verbose "no dedicated SVG renderer found, using ImageMagick"
+      # A random temporary name (registered with the exit traps), not a
+      # predictable one: the raster step runs in the user's directories.
+      raster=""
+      if egomat_temp_file "$(dirname_of "$out")" raster png; then
+        raster=$EGOMAT_TEMP_PATH
+        if rt_rasterize_svg "$src" "$raster"; then
+          src=$raster
+        else
+          egomat_remove_temp "$raster"
+          raster=""
+          log_verbose "no dedicated SVG renderer found, using ImageMagick"
+        fi
       fi
       ;;
   esac
@@ -167,9 +172,8 @@ rt_convert() {
     rc=0
   fi
 
-  if [ -n "$cleanup" ]; then
-    rm -f -- "$cleanup"
-  fi
+  # Nothing to clean here: the raster temporary is tracked in
+  # EGOMAT_TEMP_FILES and removed by the exit traps.
   return $rc
 }
 
@@ -179,7 +183,7 @@ rt_convert() {
 convert_one() {
   local src=$1
   local fmt=$OPT_FORMAT
-  local dir base out tmp before after
+  local dir base out tmp before after policy claimed tries
   local kind=${OPT_KIND:-convert} decision="new file" note=""
 
   if [ ! -f "$src" ]; then
@@ -191,6 +195,7 @@ convert_one() {
   dir=${OPT_OUTDIR:-$(dirname_of "$src")}
   base=$(file_stem "$src")
   out="$dir/$base$OPT_SUFFIX.$fmt"
+  policy=$OPT_CONFLICT
 
   # Never let a conversion destroy its own source.
   if [ "$out" = "$src" ] || { [ -e "$out" ] && [ "$out" -ef "$src" ]; }; then
@@ -198,7 +203,6 @@ convert_one() {
     note="renamed to keep the source name free"
   fi
   if [ -e "$out" ] || [ -L "$out" ]; then
-    local policy=$OPT_CONFLICT
     if [ "$policy" = ask ]; then
       if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
         decision="ask at run time (target exists)"
@@ -256,22 +260,58 @@ convert_one() {
     return 1
   fi
 
-  # Keep the target extension on the temporary file so encoders can sniff it.
-  tmp="$(dirname_of "$out")/.egomat-$$-$base.$fmt"
+  # Claim the output name before the (slow) conversion. Without this, two
+  # egomat runs in parallel would both pick the same unique rename and the
+  # second mv would silently destroy the first run's output. The claim is a
+  # placeholder registered with the exit traps: mv replaces it on success,
+  # and any failure or signal removes it.
+  claimed=0
+  if [ "$policy" != overwrite ]; then
+    tries=0
+    while :; do
+      if claim_path "$out"; then
+        claimed=1
+        EGOMAT_TEMP_FILES+=("$out")
+        break
+      fi
+      if [ -e "$out" ] || [ -L "$out" ]; then
+        out=$(unique_path "$out")
+      else
+        # Cannot create the claim (a read-only directory, say): let the
+        # real write below report the actual error.
+        break
+      fi
+      tries=$((tries + 1))
+      [ "$tries" -lt 100 ] || break
+    done
+  fi
+
+  # Keep the target extension on the temporary file so encoders can sniff
+  # it; egomat_temp_file gives a random name and trap-based cleanup.
+  if ! egomat_temp_file "$dir" conv "$fmt"; then
+    [ "$claimed" -eq 1 ] && egomat_remove_temp "$out"
+    log_error "cannot create temporary file for: $src"
+    EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
+    return 1
+  fi
+  tmp=$EGOMAT_TEMP_PATH
   before=$(fsize "$src")
 
   if ! rt_convert "$src" "$tmp" "$fmt" || [ ! -s "$tmp" ]; then
-    rm -f -- "$tmp"
+    egomat_remove_temp "$tmp"
+    [ "$claimed" -eq 1 ] && egomat_remove_temp "$out"
     log_error "could not convert: $src"
     EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
     return 1
   fi
   if ! mv -f -- "$tmp" "$out"; then
-    rm -f -- "$tmp"
+    egomat_remove_temp "$tmp"
+    [ "$claimed" -eq 1 ] && egomat_remove_temp "$out"
     log_error "cannot write: $out"
     EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
     return 1
   fi
+  [ "$claimed" -eq 1 ] && egomat_forget_temp "$out"
 
   after=$(fsize "$out")
   track_sizes "$before" "$after"
@@ -307,14 +347,16 @@ cmd_convert() {
   while [ $# -gt 0 ]; do
     case $1 in
       -f|--format)
-        [ $# -ge 2 ] || die "option $1 needs a value"
+        [ $# -ge 2 ] && [ -n "$2" ] || die "option $1 needs a value"
         OPT_FORMAT=$(norm_format "$2"); shift 2 ;;
       --format=*)
+        [ -n "${1#*=}" ] || die "option --format needs a value"
         OPT_FORMAT=$(norm_format "${1#*=}"); shift ;;
       -q|--quality)
-        [ $# -ge 2 ] || die "option $1 needs a value"
+        [ $# -ge 2 ] && [ -n "$2" ] || die "option $1 needs a value"
         OPT_QUALITY=$2; shift 2 ;;
       --quality=*)
+        [ -n "${1#*=}" ] || die "option --quality needs a value"
         OPT_QUALITY=${1#*=}; shift ;;
       -r|--resize|--size)
         [ $# -ge 2 ] || die "option $1 needs a value"
@@ -375,6 +417,7 @@ cmd_convert() {
   fi
   [ ${#files[@]} -gt 0 ] || die "convert: no input files"
   expand_inputs convert "${files[@]}"
+  egomat_install_temp_traps
 
   local f rc=0
   for f in "${EGOMAT_INPUT_FILES[@]}"; do
@@ -443,6 +486,7 @@ cmd_resize() {
   if [ "$conflict" = ask ] && ! conflict_ask_available; then
     die "resize: --on-conflict ask needs an interactive session (a terminal or desktop dialogs); use rename, skip, or overwrite"
   fi
+  egomat_install_temp_traps
 
   OPT_QUALITY=""
   OPT_RESIZE=$geo

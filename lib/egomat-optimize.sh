@@ -329,7 +329,7 @@ backup_of() {
 optimize_one() {
   local src=$1
   local level=$OPT_LEVEL
-  local ext dir base stem sfx target work before after
+  local ext dir base stem sfx target work before after policy claimed tries
 
   if [ ! -f "$src" ]; then
     log_error "not a file: $src"
@@ -355,8 +355,8 @@ optimize_one() {
       target="$od/$stem$OPT_SUFFIX-egomat$sfx"
       note="renamed to keep the source name free"
     fi
+    policy=$OPT_CONFLICT
     if [ -e "$target" ] || [ -L "$target" ]; then
-      local policy=$OPT_CONFLICT
       if [ "$policy" = ask ]; then
         if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
           policy= # the plan below reports that the decision is pending
@@ -420,6 +420,30 @@ optimize_one() {
     return 1
   fi
 
+  # Claim a copy's output name before the (slow) optimization, for the same
+  # reason convert claims its output: two parallel runs must not end up
+  # writing over each other's unique rename. In-place optimization does not
+  # claim (the target is the source itself); overwrite policy means the
+  # clobber is what was asked for.
+  claimed=0
+  if [ "$target" != "$src" ] && [ "$policy" != overwrite ]; then
+    tries=0
+    while :; do
+      if claim_path "$target"; then
+        claimed=1
+        EGOMAT_TEMP_FILES+=("$target")
+        break
+      fi
+      if [ -e "$target" ] || [ -L "$target" ]; then
+        target=$(unique_path "$target")
+      else
+        break
+      fi
+      tries=$((tries + 1))
+      [ "$tries" -lt 100 ] || break
+    done
+  fi
+
   if ! egomat_temp_file "$dir" opt "$ext"; then
     log_error "cannot create temporary file for: $src"
     EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
@@ -438,6 +462,7 @@ optimize_one() {
   after=$(fsize "$work")
   if [ "$after" -eq 0 ]; then
     egomat_remove_temp "$work"
+    [ "$claimed" -eq 1 ] && egomat_remove_temp "$target"
     log_error "optimization produced an empty file: $src"
     EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
     return 1
@@ -445,6 +470,7 @@ optimize_one() {
 
   if [ "$after" -ge "$before" ] && [ "$OPT_FORCE" -ne 1 ]; then
     egomat_remove_temp "$work"
+    [ "$claimed" -eq 1 ] && egomat_remove_temp "$target"
     if [ "$target" = "$src" ]; then
       log_info "$(basename -- "$src") is already optimal ($(human "$before"))"
     else
@@ -456,42 +482,32 @@ optimize_one() {
 
   if ! image_readable "$work" "$ext"; then
     egomat_remove_temp "$work"
+    [ "$claimed" -eq 1 ] && egomat_remove_temp "$target"
     log_error "cannot verify optimized image is readable: $src"
     EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
     return 1
   fi
 
+  if [ "$OPT_BACKUP" -eq 1 ] && ! backup_of "$src"; then
+    egomat_remove_temp "$work"
+    [ "$claimed" -eq 1 ] && egomat_remove_temp "$target"
+    EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
+    return 1
+  fi
+  if ! mv -f -- "$work" "$target"; then
+    egomat_remove_temp "$work"
+    [ "$claimed" -eq 1 ] && egomat_remove_temp "$target"
+    log_error "cannot write: $target"
+    EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
+    return 1
+  fi
+  egomat_forget_temp "$work"
+  [ "$claimed" -eq 1 ] && egomat_forget_temp "$target"
+  track_sizes "$before" "$after"
+  EGOMAT_OPTIMIZED=$((EGOMAT_OPTIMIZED + 1))
   if [ "$target" = "$src" ]; then
-    if [ "$OPT_BACKUP" -eq 1 ] && ! backup_of "$src"; then
-      egomat_remove_temp "$work"
-      EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
-      return 1
-    fi
-    if ! mv -f -- "$work" "$target"; then
-      egomat_remove_temp "$work"
-      log_error "cannot write: $target"
-      EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
-      return 1
-    fi
-    egomat_forget_temp "$work"
-    track_sizes "$before" "$after"
-    EGOMAT_OPTIMIZED=$((EGOMAT_OPTIMIZED + 1))
     log_info "$(basename -- "$src") $before -> $after bytes ($(human "$before") -> $(human "$after"))"
   else
-    if [ "$OPT_BACKUP" -eq 1 ] && ! backup_of "$src"; then
-      egomat_remove_temp "$work"
-      EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
-      return 1
-    fi
-    if ! mv -f -- "$work" "$target"; then
-      egomat_remove_temp "$work"
-      log_error "cannot write: $target"
-      EGOMAT_FAILED=$((EGOMAT_FAILED + 1))
-      return 1
-    fi
-    egomat_forget_temp "$work"
-    track_sizes "$before" "$after"
-    EGOMAT_OPTIMIZED=$((EGOMAT_OPTIMIZED + 1))
     log_info "$(basename -- "$src") -> $target ($(human "$before") -> $(human "$after"))"
   fi
   return 0
@@ -517,9 +533,10 @@ cmd_optimize() {
   while [ $# -gt 0 ]; do
     case $1 in
       -l|--level)
-        [ $# -ge 2 ] || die "option $1 needs a value"
+        [ $# -ge 2 ] && [ -n "$2" ] || die "option $1 needs a value"
         OPT_LEVEL=$(norm_level "$2"); shift 2 ;;
       --level=*)
+        [ -n "${1#*=}" ] || die "option --level needs a value"
         OPT_LEVEL=$(norm_level "${1#*=}"); shift ;;
       -o|--outdir|--output-dir)
         [ $# -ge 2 ] || die "option $1 needs a value"

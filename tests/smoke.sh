@@ -266,6 +266,34 @@ check "optimize honours on-conflict skip" bash -c \
    '$EGOMAT' optimize -l light --force -s -opt --on-conflict skip '$conf/photo.png' >/dev/null &&
    ! compgen -G '$conf/photo-opt-1.png' >/dev/null"
 
+# --- hardening -------------------------------------------------------------
+# An empty option value must be an error, not a silent default.
+check "empty --format value is refused" bash -c \
+  "! '$EGOMAT' convert --format= '$conf/photo.png' >/dev/null 2>&1"
+check "empty --quality value is refused" bash -c \
+  "! '$EGOMAT' convert -f webp --quality= '$conf/photo.png' >/dev/null 2>&1"
+check "empty --level value is refused" bash -c \
+  "! '$EGOMAT' optimize --level= '$conf/photo.png' >/dev/null 2>&1"
+
+# A successful run must not leave egomat temporaries behind.
+check "convert leaves no temporaries" bash -c \
+  "! ls '$conf'/'.egomat-'* >/dev/null 2>&1"
+
+# Two egomat runs racing for the same output name must both keep their
+# output: the second one claims the next free name instead of clobbering.
+conc="$TMP/concurrent"
+mkdir -p -- "$conc"
+cp "$conf/photo.png" "$conc/shared.png"
+"$EGOMAT" convert -f webp "$conc/shared.png" >/dev/null 2>&1 &
+p1=$!
+"$EGOMAT" convert -f webp "$conc/shared.png" >/dev/null 2>&1 &
+p2=$!
+wait "$p1" "$p2"
+check "concurrent converts keep both outputs" bash -c \
+  "test -s '$conc/shared.webp' && test -s '$conc/shared-1.webp'"
+check "concurrent convert leaves no temporaries" bash -c \
+  "! ls '$conc'/'.egomat-'* >/dev/null 2>&1"
+
 # --- conversion ------------------------------------------------------------
 check "png -> webp" "$EGOMAT" convert -f webp "$TMP/photo.png"
 check "webp exists" test -s "$TMP/photo.webp"

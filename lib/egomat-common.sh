@@ -142,6 +142,14 @@ unique_path() {
   done
 }
 
+# Create $1 as an empty placeholder file, atomically. Fails when the path
+# already exists (a concurrent process wins the name) or when the file
+# cannot be created. Commands use this to reserve an output name before a
+# slow conversion; the real write replaces the placeholder afterwards.
+claim_path() {
+  ( set -o noclobber; : > "$1" ) 2>/dev/null
+}
+
 # ---------------------------------------------------------------------------
 # Conflict policy for existing outputs: rename (default), skip, overwrite,
 # ask. Commands that write new files accept --on-conflict; "ask" is reserved

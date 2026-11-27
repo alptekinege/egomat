@@ -71,12 +71,26 @@ egomat_detect_ui
 cmd=${1-}
 [ $# -gt 0 ] && shift
 
+# "egomat COMMAND --help" / "-h" shows that command's help. The check
+# stops at "--", so a file actually named --help still converts.
+# The help commands themselves are excluded: "help --help" shows the
+# help for help, and "--help convert" is handled as "help convert".
+case $cmd in
+  ''|help|-h|--help) ;;
+  *)
+    if args_have_help_flag "$@"; then
+      show_usage_for "$cmd"
+      exit $?
+    fi
+    ;;
+esac
+
 case $cmd in
   convert)     cmd_convert "$@" ;;
   optimize)    cmd_optimize "$@" ;;
   resize)      cmd_resize "$@" ;;
   info)        cmd_info "$@" ;;
-  formats|format) cmd_formats ;;
+  formats|format) cmd_formats "$@" ;;
   assistant|gui)  cmd_assistant "$@" ;;
   menu)        cmd_menu "$@" ;;
   install)     cmd_install "$@" ;;
@@ -85,10 +99,13 @@ case $cmd in
     printf '%s %s\n' "$EGOMAT_NAME" "$EGOMAT_VERSION"
     exit 0
     ;;
-  help|-h|--help|'')
+  help|-h|--help)
+    cmd_help "$@"
+    exit $?
+    ;;
+  '')
     usage
-    if [ -z "$cmd" ]; then exit 1; fi
-    exit 0
+    exit 1
     ;;
   *)
     log_error "unknown command: $cmd"

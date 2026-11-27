@@ -40,6 +40,21 @@ have() {
   command -v -- "$1" >/dev/null 2>&1
 }
 
+# True when -h/--help appears before any "--" separator. The separator
+# matters: "info -- --help" names a file called --help, it is not a help
+# request. Callers check this before any other argument validation so
+# that "convert --help" works without a --format value.
+args_have_help_flag() {
+  local a
+  for a in "$@"; do
+    case $a in
+      --) return 1 ;;
+      -h|--help) return 0 ;;
+    esac
+  done
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # Path utilities
 # ---------------------------------------------------------------------------

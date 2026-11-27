@@ -437,6 +437,10 @@ optimize_one() {
 # Command
 # ---------------------------------------------------------------------------
 cmd_optimize() {
+  if args_have_help_flag "$@"; then
+    usage_optimize
+    return 0
+  fi
   OPT_LEVEL=balanced
   OPT_OUTDIR=""
   OPT_SUFFIX=""

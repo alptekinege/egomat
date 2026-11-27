@@ -17,7 +17,12 @@ Usage:
   $EGOMAT_NAME menu ACTION [PARAM] FILE...
   $EGOMAT_NAME install [options]
   $EGOMAT_NAME uninstall [options]
-  $EGOMAT_NAME version | help
+  $EGOMAT_NAME version | help [COMMAND]
+
+Every command accepts -h/--help, and "help COMMAND" shows the same text:
+  $EGOMAT_NAME help convert
+  $EGOMAT_NAME convert --help
+Run "$EGOMAT_NAME help COMMAND" for the options and examples of a command.
 
 Convert options:
   -f, --format FMT     target format: $EGOMAT_TARGETS
@@ -48,14 +53,395 @@ Menu actions (used by the desktop entries):
   The words "custom" (FORMAT), "ask" (LEVEL) and "ask" (GEOMETRY) open a
   prompt instead.
 
-Global options (before the command, or after it):
-  --quiet   --verbose   --ui=none|auto|dialog
+Global options (before the command):
+  --quiet   --verbose   --no-ui   --ui   --ui=none|auto|dialog
+  (--quiet/--verbose also work after convert, optimize, and resize.)
+
+Examples:
+  $EGOMAT_NAME convert -f webp -q 80 -- *.png
+  $EGOMAT_NAME convert -f avif -r 1920 -o "\$HOME/web" -- images/*.jpg
+  $EGOMAT_NAME optimize -l balanced --backup -- photo.jpg
+  $EGOMAT_NAME resize 1600 -- photo.jpg
+  $EGOMAT_NAME info -- shot.png
 
 Conversion needs ImageMagick, ffmpeg, cwebp/avifenc or img2pdf.
 Optimization needs any of oxipng, optipng, pngquant, jpegoptim, gifsicle,
 svgo, cwebp/webpmux or ImageMagick. Run "$EGOMAT_NAME formats" to see what
 this machine has.
 EOF
+}
+
+usage_convert() {
+  cat <<EOF
+$EGOMAT_NAME convert — convert images to a different format.
+
+Usage:
+  $EGOMAT_NAME convert -f FORMAT [options] FILE...
+  $EGOMAT_NAME convert [options] -- FILE...
+
+Options:
+  -f, --format FMT     target format, required: $EGOMAT_TARGETS
+                       ("jpeg" means jpg, "tif" means tiff; a leading dot
+                       such as ".webp" is accepted)
+  -q, --quality N      quality 1-100 for lossy formats
+                       (ImageMagick defaults: jpg 88, webp 82, avif 60,
+                       pdf 90; other backends use their own scale)
+  -r, --resize GEOM    resize while converting; e.g. 1920, 1920x1080,
+      --size GEOM      800x800!, 1920x>, x1080 (ImageMagick geometry;
+                       --size is accepted as an alias for --resize)
+  -o, --outdir DIR     write results into DIR (default: next to the
+      --output-dir DIR source); the directory is created if needed
+  -s, --suffix SUFFIX  add SUFFIX to the new file name
+      --overwrite      replace an existing output file (never the source)
+      --keep-metadata  do not strip EXIF/ICC data where the backend
+                       supports keeping it
+      --delete-source  remove the source after a successful conversion
+      --quiet          print only errors
+      --verbose        print backend decisions and errors
+  -h, --help           show this help and exit
+
+Behaviour:
+  Conversion never writes over the source. Converting photo.jpg to WebP
+  writes photo.webp next to it; converting to the same format writes
+  photo-egomat.<fmt>. An existing output name gets a unique numbered
+  name (photo-1.webp, ...) unless --overwrite is given. Metadata is
+  stripped by default where the backend supports it. Use "--" before
+  file names that begin with a dash.
+
+Examples:
+  $EGOMAT_NAME convert -f webp photo.jpg
+  $EGOMAT_NAME convert -f webp -q 80 -- *.png
+  $EGOMAT_NAME convert -f avif -r 1920 -o "\$HOME/web" -- images/*.jpg
+  $EGOMAT_NAME convert --format png --resize 1200x800 --outdir resized -- photo.jpg
+  $EGOMAT_NAME convert -f jpg --keep-metadata photo.png
+  $EGOMAT_NAME convert -f webp --overwrite photo.jpg
+  $EGOMAT_NAME convert -f webp --delete-source photo.jpg
+  $EGOMAT_NAME help convert
+EOF
+}
+
+usage_optimize() {
+  cat <<EOF
+$EGOMAT_NAME optimize — shrink images in place or into new files.
+
+Usage:
+  $EGOMAT_NAME optimize [options] FILE...
+  $EGOMAT_NAME optimize [options] -- FILE...
+
+Options:
+  -l, --level LEVEL    light | balanced | aggressive (default: balanced)
+                       (aliases: lossless/fast, normal/mid,
+                       max/heavy; light is lossless, balanced makes a
+                       small quality trade, aggressive saves the most)
+  -o, --outdir DIR     write optimised copies into DIR instead of in
+      --output-dir DIR place
+  -s, --suffix SUFFIX  write to a new name instead of in place
+      --backup         keep a copy of the original as FILE.egomat-orig
+                       before writing;
+                       if the backup fails, nothing is replaced
+      --force          replace even when the candidate is not smaller
+                       (the candidate must still be a readable image)
+      --quiet          print only errors
+      --verbose        print backend decisions and errors
+  -h, --help           show this help and exit
+
+Behaviour:
+  Each file is optimised on a temporary copy first. The source (or the
+  requested output copy) is written only when the candidate is nonempty,
+  still readable as an image, and smaller than the input. Without
+  --force, an empty, unreadable, equal, or larger candidate is discarded
+  and the source stays unchanged; with --outdir/--suffix no output file
+  is written in that case. See "$EGOMAT_NAME help optimize" and the
+  README for what each level does per format. Use "--" before file
+  names that begin with a dash.
+
+Examples:
+  $EGOMAT_NAME optimize photo.jpg
+  $EGOMAT_NAME optimize -l balanced --backup -- photo.jpg
+  $EGOMAT_NAME optimize -l aggressive --force -- photo.png
+  $EGOMAT_NAME optimize -l light -o optimized -- photo.jpg
+  $EGOMAT_NAME optimize -l light --backup photo.png photo2.jpg
+  $EGOMAT_NAME help optimize
+EOF
+}
+
+usage_resize() {
+  cat <<EOF
+$EGOMAT_NAME resize — write a resized copy in the source format.
+
+Usage:
+  $EGOMAT_NAME resize GEOMETRY [options] FILE...
+  $EGOMAT_NAME resize GEOMETRY -- FILE...
+
+GEOMETRY is ImageMagick size syntax, for example:
+  1920       width of 1920 pixels, preserve aspect ratio
+  1920x1080  fit within these dimensions
+  800x800!   force these exact dimensions
+  1920x>     shrink only
+  x1080      height of 1080 pixels, preserve aspect ratio
+
+Options:
+  -o, --outdir DIR     write into DIR (default: next to the source)
+      --output-dir DIR
+  -s, --suffix SUFFIX  file-name suffix (default: -resized)
+      --overwrite      replace an existing output file (never the source)
+      --quiet          print only errors
+      --verbose        print backend decisions and errors
+  -h, --help           show this help and exit
+
+Behaviour:
+  Resize writes a new file, e.g. photo.jpg resized to 1600 becomes
+  photo-resized.jpg next to the source. Use --suffix to change the name
+  and --outdir to change the folder. The FFmpeg fallback translates
+  numeric width/height and "!"; modifiers such as ">", "<", "^", and "%"
+  may not be honoured by that backend. Use "--" before file names that
+  begin with a dash.
+
+Examples:
+  $EGOMAT_NAME resize 1600 -- photo.jpg
+  $EGOMAT_NAME resize 1920x1080 -- photo.jpg
+  $EGOMAT_NAME resize 800x800! -- photo.png
+  $EGOMAT_NAME resize 1920x\> -- photo.jpg
+  $EGOMAT_NAME resize 200 -o thumbs -- photo.png
+  $EGOMAT_NAME resize 200 --suffix -small -- photo.png
+  $EGOMAT_NAME help resize
+EOF
+}
+
+usage_info() {
+  cat <<EOF
+$EGOMAT_NAME info — show format, dimensions, and size for images.
+
+Usage:
+  $EGOMAT_NAME info FILE...
+  $EGOMAT_NAME info -- FILE...
+
+Options:
+  -h, --help           show this help and exit
+
+Behaviour:
+  Prints the path, format, pixel dimensions, and byte size for each
+  file. Files that are not readable images are reported on stderr and
+  skipped; info never modifies a file. Use "--" before file names that
+  begin with a dash. Global --quiet/--verbose go before the command,
+  e.g. "$EGOMAT_NAME --verbose info photo.png".
+
+Examples:
+  $EGOMAT_NAME info photo.png
+  $EGOMAT_NAME info -- shot.png
+  $EGOMAT_NAME info *.jpg
+  $EGOMAT_NAME info -- -odd-image.png
+  $EGOMAT_NAME help info
+EOF
+}
+
+usage_formats() {
+  cat <<EOF
+$EGOMAT_NAME formats — list installed image tools and target formats.
+
+Usage:
+  $EGOMAT_NAME formats
+
+Options:
+  -h, --help           show this help and exit
+
+Behaviour:
+  Lists the target formats ($EGOMAT_TARGETS) and which known
+  conversion, optimisation, and dialog tools are present on this
+  machine. This is a tool inventory, not a probe: a tool being present
+  does not guarantee it can encode every listed target. Run "optimize"
+  or "convert" to see whether a concrete job works.
+
+Examples:
+  $EGOMAT_NAME formats
+  $EGOMAT_NAME formats | grep -E "magick|ffmpeg"
+  $EGOMAT_NAME help formats
+EOF
+}
+
+usage_assistant() {
+  cat <<EOF
+$EGOMAT_NAME assistant — interactive wizard for file-manager use.
+
+Usage:
+  $EGOMAT_NAME assistant [FILE...]
+  $EGOMAT_NAME assistant -- FILE...
+
+Options:
+  -h, --help           show this help and exit
+
+Behaviour:
+  Opens a dialog (kdialog or zenity, whichever is installed) offering
+  convert, resize, optimize, and info actions for the given files, or
+  a file picker when no files are given. It runs the same commands as
+  the command line. "gui" is an alias for "assistant".
+
+Examples:
+  $EGOMAT_NAME assistant
+  $EGOMAT_NAME assistant -- photo.jpg photo.png
+  $EGOMAT_NAME assistant photo.jpg
+  $EGOMAT_NAME help assistant
+EOF
+}
+
+usage_menu() {
+  cat <<EOF
+$EGOMAT_NAME menu — entry point used by the desktop actions.
+
+Usage:
+  $EGOMAT_NAME menu ACTION [PARAM] FILE...
+
+ACTION is one of:
+  convert FORMAT | optimize LEVEL | resize GEOMETRY | info
+
+For convert, FORMAT may be "custom" to be prompted for. For optimize,
+LEVEL may be "ask" to be prompted for. For resize, GEOMETRY may be
+"ask" to be prompted for. Prompts need kdialog or zenity. This command
+is what the .desktop entries invoke; most people use convert, optimize,
+resize, and info directly.
+
+Options:
+  -h, --help           show this help and exit
+
+Examples:
+  $EGOMAT_NAME menu convert webp photo.jpg
+  $EGOMAT_NAME menu optimize light photo.jpg
+  $EGOMAT_NAME menu resize 1920 photo.jpg
+  $EGOMAT_NAME menu info photo.jpg
+  $EGOMAT_NAME help menu
+EOF
+}
+
+usage_install() {
+  cat <<EOF
+$EGOMAT_NAME install — install the command and desktop actions.
+
+Usage:
+  $EGOMAT_NAME install [options]
+
+Options (passed to install.sh):
+      --user           install for the current user (default):
+                       ~/.local/bin/egomat, ~/.local/lib/egomat, and
+                       the XDG data directory
+      --system         install into /usr/local (needs write access)
+      --prefix DIR     install under DIR (DIR/bin, DIR/lib, DIR/share)
+      --no-kde         skip the KDE/Dolphin service menu
+      --no-freedesktop skip the Nautilus, Nemo, Thunar, and Caja actions
+      --no-app         skip the application-menu entry and the icon
+      --gui            also build and install egomat-gui (needs Go 1.23+)
+      --no-gui         do not build egomat-gui (default)
+  -n, --dry-run        print what would be done, change nothing
+  -h, --help           show this help and exit
+
+Examples:
+  $EGOMAT_NAME install
+  sudo $EGOMAT_NAME install --system
+  $EGOMAT_NAME install --prefix "\$HOME/opt/egomat"
+  $EGOMAT_NAME install --no-kde --no-freedesktop --no-app
+  $EGOMAT_NAME install --gui
+  $EGOMAT_NAME install --dry-run
+  $EGOMAT_NAME help install
+EOF
+}
+
+usage_uninstall() {
+  cat <<EOF
+$EGOMAT_NAME uninstall — remove an install recorded by install.sh.
+
+Usage:
+  $EGOMAT_NAME uninstall [options]
+
+Options (passed to uninstall.sh):
+      --user           remove the current user's installation (default)
+      --system         remove the /usr/local installation
+      --prefix DIR     remove the installation under DIR
+  -n, --dry-run        print what would be removed, change nothing
+  -h, --help           show this help and exit
+
+Behaviour:
+  Removes only files and directories recorded in the install manifest;
+  unrelated files (for example other Nautilus/Caja Egomat scripts) are
+  preserved. Use the same --user/--system/--prefix as the install.
+
+Examples:
+  $EGOMAT_NAME uninstall
+  sudo $EGOMAT_NAME uninstall --system
+  $EGOMAT_NAME uninstall --prefix "\$HOME/opt/egomat"
+  $EGOMAT_NAME uninstall --dry-run
+  $EGOMAT_NAME help uninstall
+EOF
+}
+
+usage_version() {
+  cat <<EOF
+$EGOMAT_NAME version — print the Egomat version.
+
+Usage:
+  $EGOMAT_NAME version
+  $EGOMAT_NAME --version
+  $EGOMAT_NAME -V
+
+Options:
+  -h, --help           show this help and exit
+
+Examples:
+  $EGOMAT_NAME version
+  $EGOMAT_NAME --version
+  $EGOMAT_NAME help version
+EOF
+}
+
+usage_help() {
+  cat <<EOF
+$EGOMAT_NAME help — show help for Egomat or for one command.
+
+Usage:
+  $EGOMAT_NAME help [COMMAND]
+  $EGOMAT_NAME COMMAND --help
+  $EGOMAT_NAME COMMAND -h
+
+COMMAND is one of:
+  convert  optimize  resize  info  formats  assistant  menu
+  install  uninstall  version  help
+
+With no COMMAND, the general help is shown. With a COMMAND, that
+command's options and examples are shown. Both forms exit 0; an
+unknown COMMAND exits non-zero.
+
+Examples:
+  $EGOMAT_NAME help
+  $EGOMAT_NAME help convert
+  $EGOMAT_NAME help optimize
+  $EGOMAT_NAME convert --help
+  $EGOMAT_NAME help help
+EOF
+}
+
+# Print the help text for one command (aliases resolved to canonical names).
+show_usage_for() {
+  case ${1-} in
+    convert) usage_convert ;;
+    optimize) usage_optimize ;;
+    resize) usage_resize ;;
+    info) usage_info ;;
+    formats|format) usage_formats ;;
+    assistant|gui) usage_assistant ;;
+    menu) usage_menu ;;
+    install) usage_install ;;
+    uninstall) usage_uninstall ;;
+    version|-V|--version) usage_version ;;
+    help|-h|--help) usage_help ;;
+    '') usage ;;
+    *)
+      log_error "unknown help topic: $1"
+      printf "Try '%s help'.\n" "$EGOMAT_NAME" >&2
+      return 2
+      ;;
+  esac
+}
+
+cmd_help() {
+  show_usage_for "${1-}"
 }
 
 # ---------------------------------------------------------------------------
@@ -85,6 +471,10 @@ _menu_resize_ask() {
 }
 
 cmd_menu() {
+  if args_have_help_flag "$@"; then
+    usage_menu
+    return 0
+  fi
   local verb=${1-}
   [ $# -gt 0 ] && shift
   [ -n "$verb" ] || die "menu: no action given (try '$EGOMAT_NAME help')"
@@ -163,6 +553,10 @@ cmd_menu() {
 # assistant — the file-manager wizard
 # ---------------------------------------------------------------------------
 cmd_assistant() {
+  if args_have_help_flag "$@"; then
+    usage_assistant
+    return 0
+  fi
   if ! have kdialog && ! have zenity; then
     die "assistant: needs kdialog or zenity. Use '$EGOMAT_NAME help' for the command line."
   fi
@@ -218,6 +612,10 @@ cmd_assistant() {
 # formats — what this machine can actually do
 # ---------------------------------------------------------------------------
 cmd_formats() {
+  if args_have_help_flag "$@"; then
+    usage_formats
+    return 0
+  fi
   printf 'Target formats: %s\n\n' "$EGOMAT_TARGETS"
 
   printf 'Conversion backends:\n'
@@ -256,6 +654,10 @@ _fmt_row() {
 }
 
 cmd_install() {
+  if args_have_help_flag "$@"; then
+    usage_install
+    return 0
+  fi
   if [ ! -f "$EGOMAT_ROOT/install.sh" ]; then
     die "install: $EGOMAT_ROOT/install.sh is missing"
   fi
@@ -263,6 +665,10 @@ cmd_install() {
 }
 
 cmd_uninstall() {
+  if args_have_help_flag "$@"; then
+    usage_uninstall
+    return 0
+  fi
   if [ ! -f "$EGOMAT_ROOT/uninstall.sh" ]; then
     die "uninstall: $EGOMAT_ROOT/uninstall.sh is missing"
   fi

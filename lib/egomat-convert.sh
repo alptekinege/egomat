@@ -242,6 +242,10 @@ convert_one() {
 # Command
 # ---------------------------------------------------------------------------
 cmd_convert() {
+  if args_have_help_flag "$@"; then
+    usage_convert
+    return 0
+  fi
   OPT_FORMAT=""
   OPT_QUALITY=""
   OPT_RESIZE=""
@@ -320,6 +324,10 @@ cmd_convert() {
 # Resize: convert each file to its own format with a new pixel size.
 # ---------------------------------------------------------------------------
 cmd_resize() {
+  if args_have_help_flag "$@"; then
+    usage_resize
+    return 0
+  fi
   local geo=${1-}
   [ $# -gt 0 ] && shift
   [ -n "$geo" ] || die "resize: a size is required, e.g. 1920 or 1920x1080"
@@ -375,6 +383,10 @@ cmd_resize() {
 # Info
 # ---------------------------------------------------------------------------
 cmd_info() {
+  if args_have_help_flag "$@"; then
+    usage_info
+    return 0
+  fi
   [ "${1-}" = "--" ] && shift
   [ $# -gt 0 ] || die "info: no input files"
   local f dims fmt sz

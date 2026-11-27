@@ -34,6 +34,21 @@ bash ./install.sh --no-kde --no-freedesktop --no-app
 `--no-freedesktop`, and `--no-app` skip the corresponding integrations. The
 installer also accepts `--user` and `--system`.
 
+To fetch the current branch's upstream changes and reinstall Egomat, run the
+updater from a clean Git checkout:
+
+```sh
+bash ./update.sh
+bash ./update.sh --system
+bash ./update.sh --prefix "$HOME/opt/egomat"
+```
+
+It only fast-forwards the current branch and refuses to fetch when the checkout
+has changes. Pass `--no-fetch` to reinstall the current local checkout instead.
+Installer options such as `--no-kde` and `--no-freedesktop` are passed through;
+repeat the options used for the original install. `--dry-run` skips fetching
+and previews the install actions.
+
 To remove an install, use the same install mode or prefix:
 
 ```sh
@@ -231,6 +246,7 @@ lib/egomat-optimize.sh  optimization engine
 lib/egomat-menu.sh      assistant, usage, and format inventory
 share/                  desktop and file-manager templates
 install.sh              installer
+update.sh               checkout updater and installer
 uninstall.sh            uninstaller
 tests/smoke.sh          end-to-end smoke script
 tests/real-images.sh    real-photo conversion and optimization checks

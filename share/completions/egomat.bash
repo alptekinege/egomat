@@ -12,6 +12,7 @@ _egomat_complete() {
   local commands="convert optimize resize info formats assistant menu install uninstall version help completion"
   local formats="png jpg jpeg webp avif gif bmp tiff tif ico pdf"
   local levels="light lossless fast balanced normal default mid aggressive max maximum strong heavy"
+  local conflicts="rename skip overwrite ask"
   local opts
   local -a pos=()
   COMPREPLY=()
@@ -39,6 +40,9 @@ _egomat_complete() {
     -l|--level)
       COMPREPLY=( $(compgen -W "$levels" -- "$cur") )
       return 0 ;;
+    --on-conflict)
+      COMPREPLY=( $(compgen -W "$conflicts" -- "$cur") )
+      return 0 ;;
     -o|--outdir|--output-dir|--prefix)
       COMPREPLY=( $(compgen -d -- "$cur") )
       return 0 ;;
@@ -55,7 +59,7 @@ _egomat_complete() {
     case $word in
       --) break ;;
       --*=*) ;;
-      -f|--format|-q|--quality|-r|--resize|--size|-o|--outdir|--output-dir|-s|--suffix|-l|--level|--prefix)
+      -f|--format|-q|--quality|-r|--resize|--size|-o|--outdir|--output-dir|-s|--suffix|-l|--level|--on-conflict|--prefix)
         want=1 ;;
       -*) ;;
       *) pos+=("$word") ;;
@@ -67,11 +71,11 @@ _egomat_complete() {
       "")
         opts="-h --help --quiet --verbose --no-ui --ui" ;;
       convert)
-        opts="-f --format -q --quality -r --resize --size -o --outdir --output-dir -s --suffix --overwrite --keep-metadata --delete-source --dry-run --quiet --verbose -h --help" ;;
+        opts="-f --format -q --quality -r --resize --size -o --outdir --output-dir -s --suffix --on-conflict --overwrite --keep-metadata --delete-source --dry-run --quiet --verbose -h --help" ;;
       optimize)
-        opts="-l --level -o --outdir --output-dir -s --suffix --backup --force --dry-run --quiet --verbose -h --help" ;;
+        opts="-l --level -o --outdir --output-dir -s --suffix --on-conflict --backup --force --dry-run --quiet --verbose -h --help" ;;
       resize)
-        opts="-o --outdir --output-dir -s --suffix --overwrite --dry-run --quiet --verbose -h --help" ;;
+        opts="-o --outdir --output-dir -s --suffix --on-conflict --overwrite --dry-run --quiet --verbose -h --help" ;;
       install)
         opts="--user --system --prefix --no-kde --no-freedesktop --no-app --gui --no-gui -n --dry-run -h --help" ;;
       uninstall)

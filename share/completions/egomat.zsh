@@ -29,6 +29,7 @@ _egomat() {
   )
   formats=(png jpg jpeg webp avif gif bmp tiff tif ico pdf)
   levels=(light lossless fast balanced normal default mid aggressive max maximum strong heavy)
+  conflicts=(rename skip overwrite ask)
 
   # The command is the first word that is not a global option. The help
   # flag before the command means "help" ("egomat --help convert").
@@ -45,6 +46,7 @@ _egomat() {
   case ${words[CURRENT-1]} in
     -f|--format) _values 'format' $formats; return ;;
     -l|--level)  _values 'level' $levels; return ;;
+    --on-conflict) _values 'conflict policy' $conflicts; return ;;
     -o|--outdir|--output-dir|--prefix) _files -/; return ;;
     -q|--quality|-r|--resize|--size|-s|--suffix) return ;;
   esac
@@ -58,7 +60,7 @@ _egomat() {
     case $word in
       --) break ;;
       --*=*) ;;
-      -f|--format|-q|--quality|-r|--resize|--size|-o|--outdir|--output-dir|-s|--suffix|-l|--level|--prefix)
+      -f|--format|-q|--quality|-r|--resize|--size|-o|--outdir|--output-dir|-s|--suffix|-l|--level|--on-conflict|--prefix)
         want=1 ;;
       -*) ;;
       *) pos+=("$word") ;;
@@ -70,14 +72,15 @@ _egomat() {
       "")      opts=(-h --help --quiet --verbose --no-ui --ui) ;;
       convert)
         opts=(-f --format -q --quality -r --resize --size -o --outdir
-              --output-dir -s --suffix --overwrite --keep-metadata
-              --delete-source --dry-run --quiet --verbose -h --help) ;;
+              --output-dir -s --suffix --on-conflict --overwrite
+              --keep-metadata --delete-source --dry-run --quiet
+              --verbose -h --help) ;;
       optimize)
-        opts=(-l --level -o --outdir --output-dir -s --suffix --backup
-              --force --dry-run --quiet --verbose -h --help) ;;
+        opts=(-l --level -o --outdir --output-dir -s --suffix --on-conflict
+              --backup --force --dry-run --quiet --verbose -h --help) ;;
       resize)
-        opts=(-o --outdir --output-dir -s --suffix --overwrite --dry-run
-              --quiet --verbose -h --help) ;;
+        opts=(-o --outdir --output-dir -s --suffix --on-conflict --overwrite
+              --dry-run --quiet --verbose -h --help) ;;
       install)
         opts=(--user --system --prefix --no-kde --no-freedesktop --no-app
               --gui --no-gui -n --dry-run -h --help) ;;

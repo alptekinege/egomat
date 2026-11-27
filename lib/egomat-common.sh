@@ -143,10 +143,73 @@ unique_path() {
 }
 
 # ---------------------------------------------------------------------------
+# Conflict policy for existing outputs: rename (default), skip, overwrite,
+# ask. Commands that write new files accept --on-conflict; "ask" is reserved
+# for interactive sessions (a terminal or desktop dialogs).
+# ---------------------------------------------------------------------------
+
+# Print the normalized conflict policy. Returns non-zero for an unknown name.
+norm_conflict() {
+  local p
+  p=$(printf '%s' "${1-}" | tr 'A-Z' 'a-z')
+  case $p in
+    rename|skip|overwrite|ask)
+      printf '%s\n' "$p"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# True when someone can answer a conflict prompt: a terminal on stdin, or
+# desktop dialogs in an interactive session.
+conflict_ask_available() {
+  [ -t 0 ] && return 0
+  if [ "${EGOMAT_INTERACTIVE:-0}" -eq 1 ] && { have kdialog || have zenity; }; then
+    return 0
+  fi
+  return 1
+}
+
+# Ask what to do about an existing output file. Prints one of: rename,
+# overwrite, skip. Cancelling or running out of input skips (the safe
+# answer: nothing is written).
+conflict_ask() {
+  local out=$1 ans
+  if [ "${EGOMAT_INTERACTIVE:-0}" -eq 1 ] && { have kdialog || have zenity; }; then
+    ans=$(ui_choose "$EGOMAT_NAME" "${out##*/} already exists. What should I do?" \
+      rename "Write to a new, unique name" \
+      overwrite "Replace the existing file" \
+      skip "Leave both files alone") || ans=skip
+  elif [ -t 0 ]; then
+    while :; do
+      printf 'egomat: %s exists. [r]ename (default), [o]verwrite, [s]kip: ' \
+        "${out##*/}" >&2
+      IFS= read -r ans || { ans=skip; break; }
+      case $ans in
+        ''|r*|R*) ans=rename ;;
+        o*|O*)    ans=overwrite ;;
+        s*|S*)    ans=skip ;;
+        *)        continue ;;
+      esac
+      break
+    done
+  else
+    ans=skip
+  fi
+  case $ans in
+    rename|overwrite|skip) printf '%s\n' "$ans" ;;
+    *) printf 'skip\n' ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # Run accounting, used for the summary the menu actions show when they finish.
 # ---------------------------------------------------------------------------
 EGOMAT_CONVERTED=0
 EGOMAT_OPTIMIZED=0
+EGOMAT_SKIPPED=0
 EGOMAT_FAILED=0
 EGOMAT_BYTES_IN=0
 EGOMAT_BYTES_OUT=0
@@ -173,6 +236,9 @@ report_text() {
     else
       t="$t$(printf '%d file(s) optimized' "$EGOMAT_OPTIMIZED")"$'\n'
     fi
+  fi
+  if [ "$EGOMAT_SKIPPED" -gt 0 ]; then
+    t="$t$(printf '%d file(s) skipped' "$EGOMAT_SKIPPED")"$'\n'
   fi
   if [ "$EGOMAT_FAILED" -gt 0 ]; then
     t="$t$(printf '%d file(s) failed' "$EGOMAT_FAILED")"$'\n'

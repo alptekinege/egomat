@@ -28,7 +28,7 @@ function __egomat_positionals
                 break
             case '--*'
                 continue
-            case '-f' '--format' '-q' '--quality' '-r' '--resize' '--size' '-o' '--outdir' '--output-dir' '-s' '--suffix' '-l' '--level' '--prefix'
+            case '-f' '--format' '-q' '--quality' '-r' '--resize' '--size' '-o' '--outdir' '--output-dir' '-s' '--suffix' '-l' '--level' '--on-conflict' '--prefix'
                 set skip 1
             case '-*'
                 continue
@@ -67,13 +67,14 @@ complete -c egomat -n __fish_use_subcommand -a help -d 'show help for Egomat or 
 complete -c egomat -n '__fish_seen_subcommand_from convert' -s f -l format -x -a 'png jpg jpeg webp avif gif bmp tiff tif ico pdf' -d 'target format'
 complete -c egomat -n '__fish_seen_subcommand_from optimize' -s l -l level -x -a 'light lossless fast balanced normal default mid aggressive max maximum strong heavy' -d 'optimization level'
 complete -c egomat -n '__fish_seen_subcommand_from convert optimize resize' -s o -l outdir -l output-dir -r -f -a '(__fish_complete_directories)' -d 'output directory'
+complete -c egomat -n '__fish_seen_subcommand_from convert optimize resize' -l on-conflict -x -a 'rename skip overwrite ask' -d 'what to do when the output exists'
 complete -c egomat -n '__fish_seen_subcommand_from install uninstall' -l prefix -r -f -a '(__fish_complete_directories)' -d 'install under DIR'
 
 # Per-command options.
 complete -c egomat -n '__fish_seen_subcommand_from convert' -s q -l quality -x -d 'quality 1-100 for lossy formats'
 complete -c egomat -n '__fish_seen_subcommand_from convert' -s r -l resize -l size -x -d 'resize geometry, e.g. 1920x1080'
 complete -c egomat -n '__fish_seen_subcommand_from convert' -s s -l suffix -x -d 'add SUFFIX to the new file name'
-complete -c egomat -n '__fish_seen_subcommand_from convert' -l overwrite -d 'replace an existing output file'
+complete -c egomat -n '__fish_seen_subcommand_from convert resize' -l overwrite -d 'shorthand for --on-conflict overwrite'
 complete -c egomat -n '__fish_seen_subcommand_from convert' -l keep-metadata -d 'do not strip EXIF/ICC data'
 complete -c egomat -n '__fish_seen_subcommand_from convert' -l delete-source -d 'remove the source after conversion'
 complete -c egomat -n '__fish_seen_subcommand_from convert optimize resize' -l dry-run -d 'show the plan and write nothing'
@@ -81,7 +82,6 @@ complete -c egomat -n '__fish_seen_subcommand_from optimize' -s s -l suffix -x -
 complete -c egomat -n '__fish_seen_subcommand_from optimize' -l backup -d 'keep a copy of the original before writing'
 complete -c egomat -n '__fish_seen_subcommand_from optimize' -l force -d 'replace even when the candidate is not smaller'
 complete -c egomat -n '__fish_seen_subcommand_from resize' -s s -l suffix -x -d 'file-name suffix (default: -resized)'
-complete -c egomat -n '__fish_seen_subcommand_from resize' -l overwrite -d 'replace an existing output file'
 complete -c egomat -n '__fish_seen_subcommand_from install uninstall' -l user -d 'install for the current user (default)'
 complete -c egomat -n '__fish_seen_subcommand_from install uninstall' -l system -d 'install into /usr/local'
 complete -c egomat -n '__fish_seen_subcommand_from install' -l no-kde -d 'skip the KDE/Dolphin service menu'

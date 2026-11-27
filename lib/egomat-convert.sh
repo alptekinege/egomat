@@ -197,12 +197,34 @@ convert_one() {
     out="$dir/$base$OPT_SUFFIX-egomat.$fmt"
     note="renamed to keep the source name free"
   fi
-  if [ -e "$out" ] && [ "$OPT_OVERWRITE" -eq 1 ]; then
-    decision="overwrite existing"
-  fi
-  if [ -e "$out" ] && [ "$OPT_OVERWRITE" -eq 0 ]; then
-    out=$(unique_path "$out")
-    decision="unique rename (target exists)"
+  if [ -e "$out" ] || [ -L "$out" ]; then
+    local policy=$OPT_CONFLICT
+    if [ "$policy" = ask ]; then
+      if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
+        decision="ask at run time (target exists)"
+        policy= # keep the colliding name in the plan below
+      else
+        policy=$(conflict_ask "$out") || policy=skip
+      fi
+    fi
+    case $policy in
+      overwrite)
+        decision="overwrite existing"
+        ;;
+      skip)
+        if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
+          printf 'would skip: %s (target exists: %s)\n' "$src" "$out"
+        else
+          log_info "$(basename -- "$src") skipped (target exists: $out)"
+          EGOMAT_SKIPPED=$((EGOMAT_SKIPPED + 1))
+        fi
+        return 0
+        ;;
+      rename)
+        out=$(unique_path "$out")
+        decision="unique rename (target exists)"
+        ;;
+    esac
   fi
   if [ -n "$note" ]; then
     decision="$decision; $note"
@@ -275,7 +297,7 @@ cmd_convert() {
   OPT_RESIZE=""
   OPT_OUTDIR=""
   OPT_SUFFIX=""
-  OPT_OVERWRITE=0
+  OPT_CONFLICT=rename
   OPT_KEEP_METADATA=0
   OPT_DELETE_SOURCE=0
   OPT_KIND=convert
@@ -310,7 +332,16 @@ cmd_convert() {
         OPT_SUFFIX=${1#*=}; shift ;;
       --quiet)         EGOMAT_LOG_LEVEL=quiet; shift ;;
       --verbose)       EGOMAT_LOG_LEVEL=verbose; shift ;;
-      --overwrite)     OPT_OVERWRITE=1; shift ;;
+      --overwrite)     OPT_CONFLICT=overwrite; shift ;;
+      --on-conflict)
+        [ $# -ge 2 ] || die "option $1 needs a value"
+        OPT_CONFLICT=$(norm_conflict "$2") ||
+          die "convert: --on-conflict must be one of: rename, skip, overwrite, ask"
+        shift 2 ;;
+      --on-conflict=*)
+        OPT_CONFLICT=$(norm_conflict "${1#*=}") ||
+          die "convert: --on-conflict must be one of: rename, skip, overwrite, ask"
+        shift ;;
       --keep-metadata) OPT_KEEP_METADATA=1; shift ;;
       --delete-source) OPT_DELETE_SOURCE=1; shift ;;
       --dry-run)       EGOMAT_DRY_RUN=1; shift ;;
@@ -326,6 +357,9 @@ cmd_convert() {
   [ -n "$OPT_FORMAT" ] || die "convert: --format is required (one of: $EGOMAT_TARGETS)"
   format_supported "$OPT_FORMAT" ||
     die "convert: unsupported format '$OPT_FORMAT' (supported: $EGOMAT_TARGETS)"
+  if [ "$OPT_CONFLICT" = ask ] && ! conflict_ask_available; then
+    die "convert: --on-conflict ask needs an interactive session (a terminal or desktop dialogs); use rename, skip, or overwrite"
+  fi
   if [ -n "$OPT_RESIZE" ]; then
     check_geometry "$OPT_RESIZE" || die "convert: invalid size '$OPT_RESIZE'"
   fi
@@ -365,7 +399,7 @@ cmd_resize() {
   check_geometry "$geo" || die "resize: invalid size '$geo'"
   [ "${1-}" = "--" ] && shift
 
-  local outdir="" suffix="-resized" overwrite=0
+  local outdir="" suffix="-resized" conflict=rename
   local -a files=()
   while [ $# -gt 0 ]; do
     case $1 in
@@ -381,19 +415,31 @@ cmd_resize() {
         suffix=${1#*=}; shift ;;
       --quiet)     EGOMAT_LOG_LEVEL=quiet; shift ;;
       --verbose)   EGOMAT_LOG_LEVEL=verbose; shift ;;
-      --overwrite) overwrite=1; shift ;;
+      --overwrite) conflict=overwrite; shift ;;
+      --on-conflict)
+        [ $# -ge 2 ] || die "option $1 needs a value"
+        conflict=$(norm_conflict "$2") ||
+          die "resize: --on-conflict must be one of: rename, skip, overwrite, ask"
+        shift 2 ;;
+      --on-conflict=*)
+        conflict=$(norm_conflict "${1#*=}") ||
+          die "resize: --on-conflict must be one of: rename, skip, overwrite, ask"
+        shift ;;
       --dry-run)   EGOMAT_DRY_RUN=1; shift ;;
       -*) die "resize: unknown option: $1" ;;
       *)  files+=("$1"); shift ;;
     esac
   done
   [ ${#files[@]} -gt 0 ] || die "resize: no input files"
+  if [ "$conflict" = ask ] && ! conflict_ask_available; then
+    die "resize: --on-conflict ask needs an interactive session (a terminal or desktop dialogs); use rename, skip, or overwrite"
+  fi
 
   OPT_QUALITY=""
   OPT_RESIZE=$geo
   OPT_OUTDIR=$outdir
   OPT_SUFFIX=$suffix
-  OPT_OVERWRITE=$overwrite
+  OPT_CONFLICT=$conflict
   OPT_KEEP_METADATA=1
   OPT_DELETE_SOURCE=0
   OPT_KIND=resize

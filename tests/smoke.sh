@@ -164,6 +164,8 @@ check "dry run reports a rename when the output exists" bash -c \
   ": > '$dry/photo.webp' && '$EGOMAT' convert --dry-run -f webp '$dry/photo.png' | grep -q 'photo-1.webp'"
 check "dry run reports the overwrite decision" bash -c \
   "'$EGOMAT' convert --dry-run -f webp --overwrite '$dry/photo.png' | grep -q 'overwrite existing'"
+check "dry run reports the skip decision" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp --on-conflict skip '$dry/photo.png' | grep -q 'would skip'"
 check "resize dry run shows the geometry" bash -c \
   "'$EGOMAT' resize 800 --dry-run '$dry/photo.png' | grep -q 'resize 800'"
 check "resize dry run writes nothing" bash -c \
@@ -180,6 +182,89 @@ check "optimize dry run writes no copy or outdir" bash -c \
   "'$EGOMAT' optimize --dry-run -o '$dry/opt' '$dry/photo.png' >/dev/null && ! test -e '$dry/opt'"
 check "dry run on a missing file fails" bash -c \
   "! '$EGOMAT' convert --dry-run -f webp '$dry/missing.png' >/dev/null 2>&1"
+# --- conflict policies -----------------------------------------------------
+conf="$TMP/conflict"
+mkdir -p -- "$conf"
+cp -- "$TMP/photo.png" "$conf/photo.png"
+
+check "on-conflict rename is the default" bash -c \
+  "'$EGOMAT' convert -f webp '$conf/photo.png' >/dev/null &&
+   '$EGOMAT' convert -f webp '$conf/photo.png' >/dev/null &&
+   test -s '$conf/photo.webp' && test -s '$conf/photo-1.webp'"
+check "on-conflict rename is explicit" bash -c \
+  "'$EGOMAT' convert -f webp --on-conflict rename '$conf/photo.png' >/dev/null &&
+   test -s '$conf/photo-2.webp'"
+check "on-conflict skip leaves the existing output alone" bash -c \
+  "cp '$conf/photo.webp' '$conf/before.webp' &&
+   '$EGOMAT' convert -f webp --on-conflict skip '$conf/photo.png' >/dev/null &&
+   cmp -s '$conf/photo.webp' '$conf/before.webp'"
+check "on-conflict skip writes no new output" bash -c \
+  "! compgen -G '$conf/photo-3.webp' >/dev/null"
+check "on-conflict skip exits successfully" \
+  "$EGOMAT" convert -f webp --on-conflict skip "$conf/photo.png"
+check "skipped files are counted separately" bash -c \
+  "'$EGOMAT' convert -f webp --on-conflict skip '$conf/photo.png' 2>&1 | grep -q '1 file(s) skipped'"
+check "on-conflict overwrite replaces the output" bash -c \
+  "'$EGOMAT' convert -f webp --on-conflict overwrite -q 30 '$conf/photo.png' >/dev/null &&
+   test -s '$conf/photo.webp' && ! cmp -s '$conf/photo.webp' '$conf/before.webp'"
+check "on-conflict overwrite never replaces the source" bash -c \
+  "'$EGOMAT' convert -f png --on-conflict overwrite '$conf/photo.png' >/dev/null &&
+   test -s '$conf/photo-egomat.png'"
+check "unknown conflict policy is refused" bash -c \
+  "! '$EGOMAT' convert -f webp --on-conflict nonsense '$conf/photo.png' >/dev/null 2>&1"
+check "on-conflict without a value is refused" bash -c \
+  "! '$EGOMAT' convert -f webp --on-conflict >/dev/null 2>&1"
+check "on-conflict ask is refused without an interactive session" bash -c \
+  "! '$EGOMAT' convert -f webp --on-conflict ask '$conf/photo.png' >/dev/null 2>&1 </dev/null"
+
+# Ask is exercised through a fake kdialog: EGOMAT_UI=dialog makes the
+# session interactive and ui_choose consults the double, which answers
+# with FAKE_DIALOG_ANSWER.
+FAKEDIALOG="$TMP/fakedialogs"
+mkdir -p -- "$FAKEDIALOG"
+cat >"$FAKEDIALOG/kdialog" <<'EOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+  case $arg in
+    --menu) printf '%s\n' "${FAKE_DIALOG_ANSWER:-skip}"; exit 0 ;;
+  esac
+done
+exit 0
+EOF
+chmod +x "$FAKEDIALOG/kdialog"
+
+check "dry run with ask reports the pending decision" bash -c \
+  "env EGOMAT_UI=dialog PATH='$FAKEDIALOG':\"\$PATH\" \
+     '$EGOMAT' convert --dry-run -f webp --on-conflict ask '$conf/photo.png' | grep -q 'ask at run time'"
+check "dry run with ask writes nothing" bash -c \
+  "cp '$conf/photo.webp' '$conf/ask-snap.webp' &&
+   env EGOMAT_UI=dialog PATH='$FAKEDIALOG':\"\$PATH\" \
+     '$EGOMAT' convert --dry-run -f webp --on-conflict ask '$conf/photo.png' >/dev/null &&
+   cmp -s '$conf/photo.webp' '$conf/ask-snap.webp'"
+check "on-conflict ask honours the skip answer" bash -c \
+  "cp '$conf/photo.webp' '$conf/ask-before.webp' &&
+   env EGOMAT_UI=dialog FAKE_DIALOG_ANSWER=skip PATH='$FAKEDIALOG':\"\$PATH\" \
+     '$EGOMAT' convert -f webp --on-conflict ask '$conf/photo.png' >/dev/null &&
+   cmp -s '$conf/photo.webp' '$conf/ask-before.webp' &&
+   ! compgen -G '$conf/photo-3.webp' >/dev/null"
+check "on-conflict ask honours the rename answer" bash -c \
+  "env EGOMAT_UI=dialog FAKE_DIALOG_ANSWER=rename PATH='$FAKEDIALOG':\"\$PATH\" \
+     '$EGOMAT' convert -f webp --on-conflict ask '$conf/photo.png' >/dev/null &&
+   test -s '$conf/photo-3.webp'"
+check "on-conflict ask honours the overwrite answer" bash -c \
+  "env EGOMAT_UI=dialog FAKE_DIALOG_ANSWER=overwrite PATH='$FAKEDIALOG':\"\$PATH\" \
+     '$EGOMAT' convert -f webp -q 50 --on-conflict ask '$conf/photo.png' >/dev/null &&
+   ! cmp -s '$conf/photo.webp' '$conf/ask-before.webp'"
+check "resize honours on-conflict skip" bash -c \
+  "'$EGOMAT' resize 200 '$conf/photo.png' >/dev/null &&
+   '$EGOMAT' resize 200 --on-conflict skip '$conf/photo.png' >/dev/null &&
+   test -s '$conf/photo-resized.png' &&
+   ! compgen -G '$conf/photo-resized-1.png' >/dev/null"
+check "optimize honours on-conflict skip" bash -c \
+  "'$EGOMAT' optimize -l light --force -s -opt '$conf/photo.png' >/dev/null &&
+   test -s '$conf/photo-opt.png' &&
+   '$EGOMAT' optimize -l light --force -s -opt --on-conflict skip '$conf/photo.png' >/dev/null &&
+   ! compgen -G '$conf/photo-opt-1.png' >/dev/null"
 
 # --- conversion ------------------------------------------------------------
 check "png -> webp" "$EGOMAT" convert -f webp "$TMP/photo.png"
@@ -240,8 +325,12 @@ else
   echo "  skip jpg optimisation (no JPEG optimiser installed)"
 fi
 
-check "optimize to outdir" "$EGOMAT" optimize -l light -o "$TMP/opt" "$TMP/photo.png"
-check "optimized copy exists" test -s "$TMP/opt/photo.png"
+if "$EGOMAT" formats 2>/dev/null | grep -q 'oxipng\s*yes\|optipng\s*yes\|zopflipng\s*yes\|pngquant\s*yes'; then
+  check "optimize to outdir" "$EGOMAT" optimize -l light -o "$TMP/opt" "$TMP/photo.png"
+  check "optimized copy exists" test -s "$TMP/opt/photo.png"
+else
+  echo "  skip optimize to outdir (no PNG optimiser installed)"
+fi
 
 if "$EGOMAT" formats 2>/dev/null | grep -q 'oxipng\s*yes\|optipng\s*yes\|zopflipng\s*yes\|pngquant\s*yes\|jpegoptim\s*yes\|jpegtran\s*yes\|gifsicle\s*yes\|svgo\s*yes\|cwebp\s*yes\|webpmux\s*yes\|ImageMagick\s*yes'; then
   cp -- "$TMP/photo.png" "$TMP/concurrent.png"

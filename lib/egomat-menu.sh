@@ -33,7 +33,10 @@ Convert options:
                        (full ImageMagick geometry syntax)
   -o, --outdir DIR     write results into DIR (default: next to the source)
   -s, --suffix SUFFIX  add SUFFIX to the new file name
-      --overwrite      replace an existing output file
+      --on-conflict P  what to do when the output file exists: rename
+                       (default; unique numbered name), skip, overwrite,
+                       or ask (interactive sessions only)
+      --overwrite      shorthand for --on-conflict overwrite
       --keep-metadata  do not strip EXIF/ICC data
       --delete-source  remove the source after a successful conversion
       --dry-run        show the plan and write nothing
@@ -42,6 +45,8 @@ Optimize options:
   -l, --level LEVEL    light | balanced | aggressive  (default: balanced)
   -o, --outdir DIR     write optimised copies into DIR instead of in place
   -s, --suffix SUFFIX  write to a new name instead of in place
+      --on-conflict P  what to do when the output copy exists: rename
+                       (default), skip, overwrite, or ask
       --backup         keep a copy of the original as FILE.egomat-orig
       --force          replace the file even when nothing got smaller
       --dry-run        show the plan and write nothing
@@ -49,7 +54,9 @@ Optimize options:
 Resize options:
   -o, --outdir DIR     write into DIR
   -s, --suffix SUFFIX  file-name suffix (default: -resized)
-      --overwrite      replace an existing output file
+      --on-conflict P  what to do when the output file exists: rename
+                       (default), skip, overwrite, or ask
+      --overwrite      shorthand for --on-conflict overwrite
       --dry-run        show the plan and write nothing
 
 Menu actions (used by the desktop entries):
@@ -64,6 +71,7 @@ Global options (before the command):
 Examples:
   $EGOMAT_NAME convert -f webp -q 80 -- *.png
   $EGOMAT_NAME convert -f avif -r 1920 -o "\$HOME/web" -- images/*.jpg
+  $EGOMAT_NAME convert -f png --on-conflict skip -- *.jpg
   $EGOMAT_NAME optimize -l balanced --backup -- photo.jpg
   $EGOMAT_NAME resize 1600 -- photo.jpg
   $EGOMAT_NAME info -- shot.png
@@ -96,7 +104,14 @@ Options:
   -o, --outdir DIR     write results into DIR (default: next to the
       --output-dir DIR source); the directory is created if needed
   -s, --suffix SUFFIX  add SUFFIX to the new file name
-      --overwrite      replace an existing output file (never the source)
+      --on-conflict P  what to do when the output file already exists:
+                       rename (default) writes a unique numbered name
+                       (photo-1.webp, ...), skip writes nothing and
+                       reports the file as skipped, overwrite replaces
+                       the existing output (never the source), and ask
+                       prompts for each file (interactive sessions
+                       only: a terminal or desktop dialogs)
+      --overwrite      shorthand for --on-conflict overwrite
       --keep-metadata  do not strip EXIF/ICC data where the backend
                        supports keeping it
       --delete-source  remove the source after a successful conversion
@@ -109,8 +124,8 @@ Options:
 Behaviour:
   Conversion never writes over the source. Converting photo.jpg to WebP
   writes photo.webp next to it; converting to the same format writes
-  photo-egomat.<fmt>. An existing output name gets a unique numbered
-  name (photo-1.webp, ...) unless --overwrite is given. Metadata is
+  photo-egomat.<fmt>. Existing outputs are handled by --on-conflict:
+  unique rename by default, or skip, overwrite, or ask. Metadata is
   stripped by default where the backend supports it. Use "--" before
   file names that begin with a dash.
 
@@ -120,7 +135,8 @@ Examples:
   $EGOMAT_NAME convert -f avif -r 1920 -o "\$HOME/web" -- images/*.jpg
   $EGOMAT_NAME convert --format png --resize 1200x800 --outdir resized -- photo.jpg
   $EGOMAT_NAME convert -f jpg --keep-metadata photo.png
-  $EGOMAT_NAME convert -f webp --overwrite photo.jpg
+  $EGOMAT_NAME convert -f webp --on-conflict overwrite photo.jpg
+  $EGOMAT_NAME convert -f webp --on-conflict skip -- *.jpg
   $EGOMAT_NAME convert -f webp --delete-source photo.jpg
   $EGOMAT_NAME convert --dry-run -f webp photo.jpg
   $EGOMAT_NAME help convert
@@ -143,6 +159,9 @@ Options:
   -o, --outdir DIR     write optimised copies into DIR instead of in
       --output-dir DIR place
   -s, --suffix SUFFIX  write to a new name instead of in place
+      --on-conflict P  what to do when the output copy exists: rename
+                       (default; unique numbered name), skip, overwrite,
+                       or ask (interactive sessions only)
       --backup         keep a copy of the original as FILE.egomat-orig
                        before writing;
                        if the backup fails, nothing is replaced
@@ -194,7 +213,13 @@ Options:
   -o, --outdir DIR     write into DIR (default: next to the source)
       --output-dir DIR
   -s, --suffix SUFFIX  file-name suffix (default: -resized)
-      --overwrite      replace an existing output file (never the source)
+      --on-conflict P  what to do when the output file already exists:
+                       rename (default) writes a unique numbered name,
+                       skip writes nothing and reports the file as
+                       skipped, overwrite replaces the existing output
+                       (never the source), and ask prompts for each file
+                       (interactive sessions only)
+      --overwrite      shorthand for --on-conflict overwrite
       --dry-run        print the planned input, output, and conflict
                        decision for each file and write nothing
       --quiet          print only errors

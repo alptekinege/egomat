@@ -172,10 +172,16 @@ egomat convert --format jpg --keep-metadata photo.png
 
 Conversion never writes over the source. By default it leaves the source in
 place and writes a new file: `photo.jpg` converted to WebP becomes
-`photo.webp`. Converting to the same format uses a `-egomat` name. Existing
-output names are given a unique numbered name unless `--overwrite` is supplied.
-`--overwrite` applies to the output file, never to the source. `--delete-source`
-removes the source after a successful conversion.
+`photo.webp`. Converting to the same format uses a `-egomat` name.
+
+When the output name already exists, `--on-conflict POLICY` decides what
+happens: `rename` (the default) writes a unique numbered name
+(`photo-1.webp`, ...), `skip` writes nothing and reports the file as
+skipped, `overwrite` replaces the existing output (never the source), and
+`ask` prompts for each file. `ask` is reserved for interactive sessions —
+a terminal or desktop dialogs — and is refused otherwise.
+`--overwrite` is shorthand for `--on-conflict overwrite`.
+`--delete-source` removes the source after a successful conversion.
 
 `--dry-run` shows the plan instead of writing: one line per input with the
 source, the planned output name (including any rename or overwrite decision),
@@ -199,9 +205,9 @@ unchanged.
 ### Resize
 
 Resize writes a new file in the source format, with `-resized` added to the
-name by default. `--outdir`, `--suffix`, and `--overwrite` control the output;
-`--dry-run` previews the planned output name and geometry without writing.
-Geometry examples include:
+name by default. `--outdir`, `--suffix`, and `--on-conflict` control the
+output; `--dry-run` previews the planned output name and geometry without
+writing. Geometry examples include:
 
 ```text
 1920       width of 1920 pixels, preserve aspect ratio
@@ -221,7 +227,9 @@ an output copy, only when the candidate is nonempty, readable as an image, and
 smaller than the input. `--force` bypasses only the smaller-file check: the
 candidate still must be readable. Without `--force`, a result that is equal in
 size or larger is discarded and the source stays unchanged; with `--outdir` or
-`--suffix`, no output file is written in that case. `--dry-run` previews the
+`--suffix`, no output file is written in that case. When an output copy's name
+already exists, `--on-conflict` applies as it does for `convert` (rename by
+default). `--dry-run` previews the
 plan — target name, level, whether the source would be replaced only if
 smaller, and any backup name — and performs none of it.
 

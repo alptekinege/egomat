@@ -87,15 +87,15 @@ image_readable() {
   if m=$(detect_magick); then
     if [ "$m" = magick ]; then
       if dims=$(magick identify -quiet -format '%w %h' "$input" 2>/dev/null); then
-        [[ $dims =~ ^[0-9]+[[:space:]]+[0-9]+ ]] && return 0
+        [[ $dims =~ ^[1-9][0-9]*[[:space:]]+[1-9][0-9]* ]] && return 0
       fi
     elif have identify; then
       if dims=$(identify -quiet -format '%w %h' "$input" 2>/dev/null); then
-        [[ $dims =~ ^[0-9]+[[:space:]]+[0-9]+ ]] && return 0
+        [[ $dims =~ ^[1-9][0-9]*[[:space:]]+[1-9][0-9]* ]] && return 0
       fi
     else
       if dims=$(im "$input" -format '%w %h' info: 2>/dev/null); then
-        [[ $dims =~ ^[0-9]+[[:space:]]+[0-9]+ ]] && return 0
+        [[ $dims =~ ^[1-9][0-9]*[[:space:]]+[1-9][0-9]* ]] && return 0
       fi
     fi
   fi
@@ -105,7 +105,7 @@ image_readable() {
       -show_entries stream=width,height -of csv=p=0 "$f" 2>/dev/null)
     dims=${dims%%$'\n'*}
     dims=${dims//,/ }
-    [[ $dims =~ ^[0-9]+[[:space:]]+[0-9]+$ ]] && return 0
+    [[ $dims =~ ^[1-9][0-9]*[[:space:]]+[1-9][0-9]*$ ]] && return 0
   fi
 
   if [ "$(file_ext "$f")" = svg ] && have svgo; then
@@ -344,12 +344,46 @@ optimize_one() {
   case $stem in *.*) stem=${stem%.*} ;; esac
   sfx=${base#"$stem"}
 
-  local od=""
+  local od="" note="" conflict_note=""
   if [ -z "$OPT_OUTDIR" ] && [ -z "$OPT_SUFFIX" ]; then
     target=$src
   else
     od=${OPT_OUTDIR:-$dir}
-    target=$(unique_path "$od/$stem$OPT_SUFFIX$sfx")
+    target="$od/$stem$OPT_SUFFIX$sfx"
+    # Never let an optimized copy replace its own source.
+    if [ "$target" = "$src" ] || { [ -e "$target" ] && [ "$target" -ef "$src" ]; }; then
+      target="$od/$stem$OPT_SUFFIX-egomat$sfx"
+      note="renamed to keep the source name free"
+    fi
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      local policy=$OPT_CONFLICT
+      if [ "$policy" = ask ]; then
+        if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
+          policy= # the plan below reports that the decision is pending
+          conflict_note="ask at run time (target exists)"
+        else
+          policy=$(conflict_ask "$target") || policy=skip
+        fi
+      fi
+      case $policy in
+        overwrite)
+          conflict_note="overwrite existing"
+          ;;
+        skip)
+          if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
+            printf 'would skip: %s (target exists: %s)\n' "$src" "$target"
+          else
+            log_info "$(basename -- "$src") skipped (target exists: $target)"
+            EGOMAT_SKIPPED=$((EGOMAT_SKIPPED + 1))
+          fi
+          return 0
+          ;;
+        rename)
+          target=$(unique_path "$target")
+          conflict_note="unique rename (target exists)"
+          ;;
+      esac
+    fi
   fi
 
   if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
@@ -362,6 +396,12 @@ optimize_one() {
       fi
     else
       decision="write optimized copy"
+    fi
+    if [ -n "$conflict_note" ]; then
+      decision="$decision; $conflict_note"
+    fi
+    if [ -n "$note" ]; then
+      decision="$decision; $note"
     fi
     if [ "$OPT_BACKUP" -eq 1 ]; then
       backup=$(unique_path "$src.egomat-orig")
@@ -468,6 +508,7 @@ cmd_optimize() {
   OPT_LEVEL=balanced
   OPT_OUTDIR=""
   OPT_SUFFIX=""
+  OPT_CONFLICT=rename
   OPT_BACKUP=0
   OPT_FORCE=0
   local -a files=()
@@ -493,6 +534,15 @@ cmd_optimize() {
       --verbose) EGOMAT_LOG_LEVEL=verbose; shift ;;
       --backup) OPT_BACKUP=1; shift ;;
       --force)  OPT_FORCE=1; shift ;;
+      --on-conflict)
+        [ $# -ge 2 ] || die "option $1 needs a value"
+        OPT_CONFLICT=$(norm_conflict "$2") ||
+          die "optimize: --on-conflict must be one of: rename, skip, overwrite, ask"
+        shift 2 ;;
+      --on-conflict=*)
+        OPT_CONFLICT=$(norm_conflict "${1#*=}") ||
+          die "optimize: --on-conflict must be one of: rename, skip, overwrite, ask"
+        shift ;;
       --dry-run) EGOMAT_DRY_RUN=1; shift ;;
       --)
         shift
@@ -506,6 +556,9 @@ cmd_optimize() {
   [ -n "$OPT_LEVEL" ] ||
     die "optimize: --level must be one of: light, balanced, aggressive"
   [ ${#files[@]} -gt 0 ] || die "optimize: no input files"
+  if [ "$OPT_CONFLICT" = ask ] && ! conflict_ask_available; then
+    die "optimize: --on-conflict ask needs an interactive session (a terminal or desktop dialogs); use rename, skip, or overwrite"
+  fi
 
   optimizer_available ||
     die "optimize: no image optimizer found. Install one of oxipng, optipng, pngquant, jpegoptim, gifsicle, svgo, cwebp/webpmux or ImageMagick."

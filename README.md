@@ -129,6 +129,7 @@ between runs.
 ```sh
 egomat convert -f webp -q 80 -- *.png
 egomat convert -f avif -r 1920 -o "$HOME/web" -- images/*.jpg
+egomat convert -f webp --recursive -- photos/
 egomat optimize -l balanced --backup -- photo.jpg
 egomat optimize -l aggressive --force -- photo.png
 egomat optimize -l light -o optimized -- photo.jpg
@@ -201,6 +202,25 @@ controls are not equivalent. A target can be listed even when this machine
 lacks a backend capable of producing it. If all applicable backends fail,
 Egomat reports an error and leaves the source and any existing output file
 unchanged.
+
+### Directory input
+
+`convert`, `optimize`, and `resize` accept directories as inputs when
+`--recursive` is given. Each directory is walked, subdirectories included,
+and every image file inside is processed. Files whose names do not look
+like images (anything but PNG, JPEG, WebP, AVIF, GIF, BMP, TIFF, ICO, and
+SVG) are skipped by default: they are counted and reported as skipped
+inputs in the final summary, separately from failures, so a folder of
+mixed content never turns into a wall of errors. Hidden files and
+directories (names starting with a dot) are ignored, and symbolic links to
+directories are not followed. Without `--recursive`, a directory argument
+is an error before the batch starts.
+
+Outputs are written next to their sources by default, or flattened into
+`--outdir` when one is given; the usual conflict policy then keeps
+duplicate names apart (with `rename`, `photo.webp`, `photo-1.webp`, ...).
+A later release will add a `--preserve-tree` option that mirrors the
+source subdirectory layout.
 
 ### Resize
 

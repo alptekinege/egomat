@@ -201,6 +201,22 @@ else
   echo "  skip JPEG optimization (jpegoptim and jpegtran are unavailable)"
 fi
 
+# Recursive directory input over the staged real photos: the whole input
+# directory is converted without naming files individually.
+mkdir -p -- "$TMP/converted/recursive"
+check "convert the real-sample directory with --recursive" \
+  egomat convert -f webp --recursive -o "$TMP/converted/recursive" -- "$TMP/input"
+recursive_count=0
+for f in "$TMP/converted/recursive"/*.webp; do
+  [ -f "$f" ] && recursive_count=$((recursive_count + 1))
+done
+check "recursive conversion produced one WebP per real photo" \
+  test "$recursive_count" -eq "${#work_images[@]}"
+check "recursive WebP output is readable" \
+  image_info "$(output_for "${work_images[0]}" "$TMP/converted/recursive" webp)"
+check "recursive conversion left the real photos unchanged" \
+  cmp -s "${work_images[0]}" "${snapshots[0]}"
+
 for i in "${!images[@]}"; do
   check "original sample $((i + 1)) remains unchanged" \
     cmp -s "${images[$i]}" "${snapshots[$i]}"

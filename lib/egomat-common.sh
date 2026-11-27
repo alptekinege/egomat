@@ -205,11 +205,72 @@ conflict_ask() {
 }
 
 # ---------------------------------------------------------------------------
+# Input expansion. With --recursive, directory arguments are walked and the
+# image files inside are processed. Non-image files are skipped and counted
+# as skipped inputs, reported separately from failures. Hidden entries (names
+# starting with a dot) are ignored and directory symlinks are not followed.
+# ---------------------------------------------------------------------------
+EGOMAT_INPUT_FILES=()
+EGOMAT_IMAGE_EXTS="png jpg jpeg jpe jfif webp avif gif bmp tif tiff ico svg svgz"
+
+# True when a file name looks like an image Egomat can read.
+is_image_name() {
+  case " $EGOMAT_IMAGE_EXTS " in
+    *" $(file_ext "$1") "*) return 0 ;;
+  esac
+  return 1
+}
+
+# Fill EGOMAT_INPUT_FILES from the input arguments. Regular files are kept
+# as given (their contents are checked later, per file). Directories are
+# walked only with OPT_RECURSIVE=1; without it they are a usage error that
+# stops the batch before it starts. $1 names the calling command for the
+# error message.
+expand_inputs() {
+  local cmd=$1 item f
+  shift
+  EGOMAT_INPUT_FILES=()
+  for item in "$@"; do
+    if [ -f "$item" ]; then
+      EGOMAT_INPUT_FILES+=("$item")
+    elif [ -d "$item" ]; then
+      if [ "${OPT_RECURSIVE:-0}" -ne 1 ]; then
+        die "$cmd: input is a directory (use --recursive): $item"
+      fi
+      while IFS= read -r -d '' f; do
+        if [ -L "$f" ] && [ ! -f "$f" ]; then
+          log_verbose "skipping (unusable link): $f"
+          continue
+        fi
+        if is_image_name "$f"; then
+          EGOMAT_INPUT_FILES+=("$f")
+        else
+          if [ "$EGOMAT_DRY_RUN" -eq 1 ]; then
+            printf 'would skip: %s (not an image)\n' "$f"
+          else
+            log_info "skipping (not an image): $f"
+          fi
+          EGOMAT_SKIPPED_INPUTS=$((EGOMAT_SKIPPED_INPUTS + 1))
+        fi
+      # Hidden entries are pruned, and only regular files and symlinks are
+      # candidates; -mindepth keeps the directory itself out of the prune.
+      done < <(find -H "$item" -mindepth 1 \( -name '.*' -prune \) -o \
+        \( \( -type f -o -type l \) -print0 \) | sort -z)
+    else
+      # Missing, or not a regular file: keep it so the per-file handler
+      # reports the failure.
+      EGOMAT_INPUT_FILES+=("$item")
+    fi
+  done
+}
+
+# ---------------------------------------------------------------------------
 # Run accounting, used for the summary the menu actions show when they finish.
 # ---------------------------------------------------------------------------
 EGOMAT_CONVERTED=0
 EGOMAT_OPTIMIZED=0
 EGOMAT_SKIPPED=0
+EGOMAT_SKIPPED_INPUTS=0
 EGOMAT_FAILED=0
 EGOMAT_BYTES_IN=0
 EGOMAT_BYTES_OUT=0
@@ -237,6 +298,9 @@ report_text() {
       t="$t$(printf '%d file(s) optimized' "$EGOMAT_OPTIMIZED")"$'\n'
     fi
   fi
+  if [ "$EGOMAT_SKIPPED_INPUTS" -gt 0 ]; then
+    t="$t$(printf '%d input(s) skipped (not an image)' "$EGOMAT_SKIPPED_INPUTS")"$'\n'
+  fi
   if [ "$EGOMAT_SKIPPED" -gt 0 ]; then
     t="$t$(printf '%d file(s) skipped' "$EGOMAT_SKIPPED")"$'\n'
   fi
@@ -258,7 +322,7 @@ finish() {
         ui_msg "$EGOMAT_NAME" "$body"
       fi
     elif [ "$EGOMAT_LOG_LEVEL" != quiet ]; then
-      printf '%s' "$body" >&2
+      printf '%s\n' "$body" >&2
     fi
   fi
   return "$rc"

@@ -305,6 +305,64 @@ check "leading-dash filename converts" bash -c \
   "cd '$dashdir' && '$EGOMAT' convert -f webp -- '-odd image.png'"
 check "converted leading-dash file exists" test -s "$dashdir/-odd image.webp"
 
+# --- recursive directory input ---------------------------------------------
+tree="$TMP/tree"
+mkdir -p -- "$tree/sub/deep" "$tree/only-text" "$tree/.hidden" "$TMP/outside"
+cp -- "$TMP/photo.png" "$tree/a.png"
+cp -- "$TMP/photo.jpg" "$tree/sub/b.jpg"
+cp -- "$TMP/photo.png" "$tree/sub/deep/c.png"
+cp -- "$TMP/photo.png" "$tree/sub/with space [x].png"
+nlname=$'nl\nname.png'
+cp -- "$TMP/photo.png" "$tree/$nlname"
+nlout="$TMP/tree-out/nl"$'\n'"name.webp"
+printf 'notes\n'  >"$tree/notes.txt"
+printf 'readme\n' >"$tree/sub/readme.md"
+printf 'info\n'   >"$tree/only-text/info.txt"
+cp -- "$TMP/photo.png" "$tree/.hidden/h.png"
+cp -- "$TMP/photo.png" "$tree/.h.png"
+cp -- "$TMP/photo.png" "$TMP/outside/escape.png"
+ln -s -- "$TMP/outside" "$tree/linked-dir"
+
+check "directory without --recursive is refused" bash -c \
+  "! '$EGOMAT' convert -f webp '$tree' >/dev/null 2>&1"
+check "directory refusal suggests --recursive" bash -c \
+  "'$EGOMAT' convert -f webp '$tree' 2>&1 | grep -q 'use --recursive'"
+check "recursive convert processes nested images" \
+  "$EGOMAT" convert -f webp --recursive -o "$TMP/tree-out" "$tree"
+check "recursive convert wrote the nested outputs" bash -c \
+  "test -s '$TMP/tree-out/a.webp' && test -s '$TMP/tree-out/b.webp' &&
+   test -s '$TMP/tree-out/c.webp' && test -s '$TMP/tree-out/with space [x].webp'"
+check "recursive convert handles newlines in file names" test -s "$nlout"
+check "recursive convert writes one output per image" bash -c \
+  "n=0; for f in '$TMP/tree-out'/*; do [ -f \"\$f\" ] && n=\$((n+1)); done; [ \"\$n\" -eq 5 ]"
+check "recursive convert reports skipped inputs in the summary" bash -c \
+  "'$EGOMAT' convert -f webp --recursive -o '$TMP/tree-out2' '$tree' 2>&1 | grep -q '3 input(s) skipped'"
+check "skipped inputs are reported separately from failures" bash -c \
+  "! '$EGOMAT' convert -f webp --recursive -o '$TMP/tree-out3' '$tree' 2>&1 | grep -q 'failed'"
+check "skip notices name the skipped file" bash -c \
+  "'$EGOMAT' convert -f webp --recursive -o '$TMP/tree-out4' '$tree' 2>&1 | grep -q 'notes.txt'"
+check "recursive walk ignores hidden entries" bash -c \
+  "! test -e '$TMP/tree-out4/.h.webp' && ! test -e '$TMP/tree-out4/h.webp'"
+check "recursive walk does not follow directory symlinks" bash -c \
+  "! test -e '$TMP/tree-out4/escape.webp'"
+check "recursive convert of an all-text directory succeeds" bash -c \
+  "'$EGOMAT' convert -f webp --recursive -o '$TMP/tree-text' '$tree/only-text' 2>&1 | grep -q '1 input(s) skipped'"
+check "explicit non-image file still fails" bash -c \
+  "! '$EGOMAT' convert -f webp '$tree/notes.txt' >/dev/null 2>&1"
+check "recursive dry run writes nothing" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp --recursive -o '$TMP/tree-dry' '$tree' >/dev/null 2>&1 &&
+   ! test -e '$TMP/tree-dry'"
+check "recursive dry run lists the plan and the skips" bash -c \
+  "'$EGOMAT' convert --dry-run -f webp --recursive -o '$TMP/tree-dry' '$tree' | grep -q 'would convert' &&
+   '$EGOMAT' convert --dry-run -f webp --recursive -o '$TMP/tree-dry' '$tree' | grep -q 'would skip'"
+check "recursive resize processes nested images" bash -c \
+  "'$EGOMAT' resize 100 --recursive -o '$TMP/tree-resized' '$tree' >/dev/null 2>&1 &&
+   test -s '$TMP/tree-resized/b-resized.jpg' && test -s '$TMP/tree-resized/c-resized.png'"
+check "recursive optimize accepts directories" \
+  "$EGOMAT" optimize -l light --recursive -o "$TMP/tree-opt" -s -opt "$tree"
+check "recursive optimize reports skipped inputs" bash -c \
+  "'$EGOMAT' optimize -l light --recursive -o '$TMP/tree-opt2' -s -opt '$tree' 2>&1 | grep -q 'input(s) skipped'"
+
 # --- optimisation ----------------------------------------------------------
 if "$EGOMAT" formats 2>/dev/null | grep -q 'oxipng\s*yes\|optipng\s*yes\|pngquant\s*yes'; then
   cp -- "$TMP/photo.png" "$TMP/before.png"

@@ -300,6 +300,7 @@ cmd_convert() {
   OPT_CONFLICT=rename
   OPT_KEEP_METADATA=0
   OPT_DELETE_SOURCE=0
+  OPT_RECURSIVE=0
   OPT_KIND=convert
   local -a files=()
 
@@ -344,6 +345,7 @@ cmd_convert() {
         shift ;;
       --keep-metadata) OPT_KEEP_METADATA=1; shift ;;
       --delete-source) OPT_DELETE_SOURCE=1; shift ;;
+      --recursive)     OPT_RECURSIVE=1; shift ;;
       --dry-run)       EGOMAT_DRY_RUN=1; shift ;;
       --)
         shift
@@ -372,9 +374,10 @@ cmd_convert() {
     fi
   fi
   [ ${#files[@]} -gt 0 ] || die "convert: no input files"
+  expand_inputs convert "${files[@]}"
 
   local f rc=0
-  for f in "${files[@]}"; do
+  for f in "${EGOMAT_INPUT_FILES[@]}"; do
     convert_one "$f" || rc=1
   done
   finish "$rc"
@@ -388,9 +391,13 @@ cmd_resize() {
     usage_resize
     return 0
   fi
-  # --dry-run is also accepted before the geometry.
-  while [ "${1-}" = "--dry-run" ]; do
-    EGOMAT_DRY_RUN=1
+  # --dry-run and --recursive are also accepted before the geometry.
+  OPT_RECURSIVE=0
+  while [ "${1-}" = "--dry-run" ] || [ "${1-}" = "--recursive" ]; do
+    case $1 in
+      --dry-run)   EGOMAT_DRY_RUN=1 ;;
+      --recursive) OPT_RECURSIVE=1 ;;
+    esac
     shift
   done
   local geo=${1-}
@@ -426,11 +433,13 @@ cmd_resize() {
           die "resize: --on-conflict must be one of: rename, skip, overwrite, ask"
         shift ;;
       --dry-run)   EGOMAT_DRY_RUN=1; shift ;;
+      --recursive) OPT_RECURSIVE=1; shift ;;
       -*) die "resize: unknown option: $1" ;;
       *)  files+=("$1"); shift ;;
     esac
   done
   [ ${#files[@]} -gt 0 ] || die "resize: no input files"
+  expand_inputs resize "${files[@]}"
   if [ "$conflict" = ask ] && ! conflict_ask_available; then
     die "resize: --on-conflict ask needs an interactive session (a terminal or desktop dialogs); use rename, skip, or overwrite"
   fi
@@ -445,7 +454,7 @@ cmd_resize() {
   OPT_KIND=resize
 
   local f rc=0
-  for f in "${files[@]}"; do
+  for f in "${EGOMAT_INPUT_FILES[@]}"; do
     OPT_FORMAT=$(norm_format "$(file_ext "$f")")
     if [ -z "$OPT_FORMAT" ]; then
       log_error "cannot tell the format of $f"

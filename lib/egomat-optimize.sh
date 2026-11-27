@@ -511,6 +511,7 @@ cmd_optimize() {
   OPT_CONFLICT=rename
   OPT_BACKUP=0
   OPT_FORCE=0
+  OPT_RECURSIVE=0
   local -a files=()
 
   while [ $# -gt 0 ]; do
@@ -534,6 +535,7 @@ cmd_optimize() {
       --verbose) EGOMAT_LOG_LEVEL=verbose; shift ;;
       --backup) OPT_BACKUP=1; shift ;;
       --force)  OPT_FORCE=1; shift ;;
+      --recursive) OPT_RECURSIVE=1; shift ;;
       --on-conflict)
         [ $# -ge 2 ] || die "option $1 needs a value"
         OPT_CONFLICT=$(norm_conflict "$2") ||
@@ -556,6 +558,7 @@ cmd_optimize() {
   [ -n "$OPT_LEVEL" ] ||
     die "optimize: --level must be one of: light, balanced, aggressive"
   [ ${#files[@]} -gt 0 ] || die "optimize: no input files"
+  expand_inputs optimize "${files[@]}"
   if [ "$OPT_CONFLICT" = ask ] && ! conflict_ask_available; then
     die "optimize: --on-conflict ask needs an interactive session (a terminal or desktop dialogs); use rename, skip, or overwrite"
   fi
@@ -565,7 +568,7 @@ cmd_optimize() {
 
   local f rc=0
   egomat_install_temp_traps
-  for f in "${files[@]}"; do
+  for f in "${EGOMAT_INPUT_FILES[@]}"; do
     optimize_one "$f" || rc=1
   done
   finish "$rc"

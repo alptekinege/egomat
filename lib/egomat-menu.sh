@@ -39,6 +39,7 @@ Convert options:
       --overwrite      shorthand for --on-conflict overwrite
       --keep-metadata  do not strip EXIF/ICC data
       --delete-source  remove the source after a successful conversion
+      --recursive      accept directories; process the image files inside
       --dry-run        show the plan and write nothing
 
 Optimize options:
@@ -49,6 +50,7 @@ Optimize options:
                        (default), skip, overwrite, or ask
       --backup         keep a copy of the original as FILE.egomat-orig
       --force          replace the file even when nothing got smaller
+      --recursive      accept directories; process the image files inside
       --dry-run        show the plan and write nothing
 
 Resize options:
@@ -57,6 +59,7 @@ Resize options:
       --on-conflict P  what to do when the output file exists: rename
                        (default), skip, overwrite, or ask
       --overwrite      shorthand for --on-conflict overwrite
+      --recursive      accept directories; process the image files inside
       --dry-run        show the plan and write nothing
 
 Menu actions (used by the desktop entries):
@@ -72,6 +75,7 @@ Examples:
   $EGOMAT_NAME convert -f webp -q 80 -- *.png
   $EGOMAT_NAME convert -f avif -r 1920 -o "\$HOME/web" -- images/*.jpg
   $EGOMAT_NAME convert -f png --on-conflict skip -- *.jpg
+  $EGOMAT_NAME convert -f webp --recursive -- photos/
   $EGOMAT_NAME optimize -l balanced --backup -- photo.jpg
   $EGOMAT_NAME resize 1600 -- photo.jpg
   $EGOMAT_NAME info -- shot.png
@@ -115,6 +119,12 @@ Options:
       --keep-metadata  do not strip EXIF/ICC data where the backend
                        supports keeping it
       --delete-source  remove the source after a successful conversion
+      --recursive      accept directories as inputs: each directory is
+                       walked and every image file inside is converted;
+                       files that do not look like images are skipped and
+                       counted as skipped inputs, separately from
+                       failures (hidden files and directories are
+                       ignored; symlinks to directories are not followed)
       --dry-run        print the planned input, output, operation, and
                        conflict decision for each file and write nothing
       --quiet          print only errors
@@ -126,7 +136,10 @@ Behaviour:
   writes photo.webp next to it; converting to the same format writes
   photo-egomat.<fmt>. Existing outputs are handled by --on-conflict:
   unique rename by default, or skip, overwrite, or ask. Metadata is
-  stripped by default where the backend supports it. Use "--" before
+  stripped by default where the backend supports it. With --recursive,
+  a directory argument is an error without the flag; with it, nested
+  images are converted and skipped non-images are reported in the final
+  summary as skipped inputs, never as failures. Use "--" before
   file names that begin with a dash.
 
 Examples:
@@ -139,6 +152,7 @@ Examples:
   $EGOMAT_NAME convert -f webp --on-conflict skip -- *.jpg
   $EGOMAT_NAME convert -f webp --delete-source photo.jpg
   $EGOMAT_NAME convert --dry-run -f webp photo.jpg
+  $EGOMAT_NAME convert -f webp --recursive -o web -- photos/
   $EGOMAT_NAME help convert
 EOF
 }
@@ -167,6 +181,12 @@ Options:
                        if the backup fails, nothing is replaced
       --force          replace even when the candidate is not smaller
                        (the candidate must still be a readable image)
+      --recursive      accept directories as inputs: each directory is
+                       walked and every image file inside is optimized;
+                       files that do not look like images are skipped and
+                       counted as skipped inputs, separately from
+                       failures (hidden files and directories are
+                       ignored; symlinks to directories are not followed)
       --dry-run        print the planned input, output, and replacement
                        decision for each file and write nothing
       --quiet          print only errors
@@ -179,8 +199,11 @@ Behaviour:
   still readable as an image, and smaller than the input. Without
   --force, an empty, unreadable, equal, or larger candidate is discarded
   and the source stays unchanged; with --outdir/--suffix no output file
-  is written in that case. See "$EGOMAT_NAME help optimize" and the
-  README for what each level does per format. Use "--" before file
+  is written in that case. With --recursive, a directory argument is an
+  error without the flag; with it, nested images are optimized and
+  skipped non-images are reported as skipped inputs, never as failures.
+  See "$EGOMAT_NAME help optimize" and the README for what each level
+  does per format. Use "--" before file
   names that begin with a dash.
 
 Examples:
@@ -190,6 +213,7 @@ Examples:
   $EGOMAT_NAME optimize -l light -o optimized -- photo.jpg
   $EGOMAT_NAME optimize -l light --backup photo.png photo2.jpg
   $EGOMAT_NAME optimize --dry-run --backup photo.jpg
+  $EGOMAT_NAME optimize -l light --recursive -o optimized -- photos/
   $EGOMAT_NAME help optimize
 EOF
 }
@@ -220,6 +244,12 @@ Options:
                        (never the source), and ask prompts for each file
                        (interactive sessions only)
       --overwrite      shorthand for --on-conflict overwrite
+      --recursive      accept directories as inputs: each directory is
+                       walked and every image file inside is resized;
+                       files that do not look like images are skipped and
+                       counted as skipped inputs, separately from
+                       failures (hidden files and directories are
+                       ignored; symlinks to directories are not followed)
       --dry-run        print the planned input, output, and conflict
                        decision for each file and write nothing
       --quiet          print only errors
@@ -229,7 +259,10 @@ Options:
 Behaviour:
   Resize writes a new file, e.g. photo.jpg resized to 1600 becomes
   photo-resized.jpg next to the source. Use --suffix to change the name
-  and --outdir to change the folder. The FFmpeg fallback translates
+  and --outdir to change the folder. With --recursive, a directory
+  argument is an error without the flag; with it, nested images are
+  resized and skipped non-images are reported as skipped inputs, never
+  as failures. The FFmpeg fallback translates
   numeric width/height and "!"; modifiers such as ">", "<", "^", and "%"
   may not be honoured by that backend. Use "--" before file names that
   begin with a dash.
@@ -242,6 +275,7 @@ Examples:
   $EGOMAT_NAME resize 200 -o thumbs -- photo.png
   $EGOMAT_NAME resize 200 --suffix -small -- photo.png
   $EGOMAT_NAME resize --dry-run 1600 -- photo.jpg
+  $EGOMAT_NAME resize 200 --recursive -o thumbs -- photos/
   $EGOMAT_NAME help resize
 EOF
 }
